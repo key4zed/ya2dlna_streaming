@@ -409,22 +409,7 @@ class StreamHandler:
                 timeout_count = 0
                 total_bytes_sent = 0
                 while True:
-                    # Диагностика: проверяем статус процесса
-                    if proc.returncode is not None:
-                        if proc.returncode == 0:
-                            logger.info(
-                                f"✅ FFmpeg процесс завершился нормально "
-                                f"(код: {proc.returncode}) - "
-                                f"трек закончился естественным путем"
-                            )
-                        else:
-                            logger.warning(
-                                f"⚠️ FFmpeg процесс завершился с ошибкой "
-                                f"(код: {proc.returncode})"
-                            )
-                        break
-
-                    # Проверка на завершение FFmpeg (stdout закрыт)
+                    # Выход после полной передачи stdout
                     if proc.stdout.at_eof():
                         logger.info(
                             "📭 FFmpeg stdout закрылся (EOF) — поток завершён"
@@ -472,7 +457,22 @@ class StreamHandler:
                             f"📊 Передано данных: "
                             f"{total_bytes_sent // 1024 // 1024} МБ"
                         )
+
                     yield chunk
+
+                # После выхода из цикла логируем завершение FFmpeg
+                if proc.returncode is not None:
+                    if proc.returncode == 0:
+                        logger.info(
+                            f"✅ FFmpeg процесс завершился нормально "
+                            f"(код: {proc.returncode}) - "
+                            "трек закончился естественным путем"
+                        )
+                    else:
+                        logger.warning(
+                            f"⚠️ FFmpeg процесс завершился с ошибкой "
+                            f"(код: {proc.returncode})"
+                        )
 
             except asyncio.CancelledError:
                 logger.info("🔌 Клиент отключился от стрима")
