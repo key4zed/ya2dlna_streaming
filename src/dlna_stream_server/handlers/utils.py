@@ -5,6 +5,8 @@ from logging import getLogger
 import aiohttp
 from fastapi import Request
 
+from src.dlna_stream_server.handlers.constants import BASE_URL
+
 logger = getLogger(__name__)
 
 
@@ -24,9 +26,8 @@ async def get_latest_index_url(master_url: str) -> str:
             "Не найден полный путь index-*.m3u8 в мастер-плейлисте"
         )
     # Получаем базовый URL из исходного master_url
-    base_url = master_url.split('/kal/')[0]
-    full_url = f"{base_url}{m.group(1)}"
-    logger.info(f"Найденный полный URL: {full_url}")
+    full_url = f"{BASE_URL}{m.group(1)}"
+    logger.info(f"🔍 Найденный полный URL: {full_url}")
     return full_url
 
 

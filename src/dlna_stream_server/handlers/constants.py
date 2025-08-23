@@ -1,3 +1,5 @@
+BASE_URL = "https://strm-m9-82.strm.yandex.net"
+
 FFMPEG_MP3_PARAMS = [
     "ffmpeg",
     "-rw_timeout", "30000000",
