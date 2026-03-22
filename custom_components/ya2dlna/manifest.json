@@ -1,0 +1,11 @@
+{
+  "domain": "ya2dlna",
+  "name": "Ya2DLNA Streaming",
+  "documentation": "https://github.com/your-repo/ya2dlna_streaming",
+  "dependencies": [],
+  "codeowners": ["@yourusername"],
+  "requirements": [],
+  "version": "1.0.0",
+  "config_flow": true,
+  "iot_class": "local_polling"
+}

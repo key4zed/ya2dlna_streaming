@@ -1,0 +1,291 @@
+# Интеграция с Home Assistant
+
+Это руководство описывает, как подключить приложение ya2dlna_streaming к Home Assistant для управления стримингом аудио с Яндекс Станции на DLNA-устройство.
+
+## Оглавление
+
+1. [Предварительные требования](#предварительные-требования)
+2. [Установка приложения ya2dlna_streaming](#установка-приложения-ya2dlna_streaming)
+3. [Настройка токена Яндекс Музыки](#настройка-токена-яндекс-музыки)
+4. [Запуск сервера](#запуск-сервера)
+5. [Проверка работы API](#проверка-работы-api)
+6. [Способ 1: RESTful Command + Template Switch (простой)](#способ-1-restful-command--template-switch-простой)
+7. [Способ 2: Кастомный компонент (более продвинутый)](#способ-2-кастомный-компонент-более-продвинутый)
+8. [Способ 3: Установка через HACS](#способ-3-установка-через-hacs)
+9. [Способ 4: Аддон Home Assistant (рекомендуемый)](#способ-4-аддон-home-assistant-рекомендуемый)
+10. [Автоматизация](#автоматизация)
+11. [Устранение неполадок](#устранение-неполадок)
+12. [Примечания](#примечания)
+
+## Предварительные требования
+
+- Home Assistant версии 2023.x или выше.
+- Доступ к конфигурации Home Assistant (файл `configuration.yaml`).
+- Сеть, в которой доступны Яндекс Станция и DLNA-устройство.
+- Токен Яндекс Музыки (для доступа к аудиопотокам).
+
+## Установка приложения ya2dlna_streaming
+
+### Вариант A: Установка из исходного кода
+
+```bash
+git clone https://github.com/your-repo/ya2dlna_streaming.git
+cd ya2dlna_streaming
+pip install -r requirements.txt
+```
+
+### Вариант B: Установка через Docker
+
+```bash
+docker build -t ya2dlna_streaming .
+docker run -d --name ya2dlna -p 8000:8000 ya2dlna_streaming
+```
+
+## Настройка токена Яндекс Музыки
+
+1. Получите токен Яндекс Музыки (инструкция: [Как получить токен](https://github.com/MarshalX/yandex-music-api/discussions/513)).
+2. Создайте файл `.env` в корне проекта или установите переменную окружения:
+   ```bash
+   export YANDEX_MUSIC_TOKEN=your_token_here
+   ```
+3. Для Docker добавьте переменную в `docker run`:
+   ```bash
+   docker run -d -e YANDEX_MUSIC_TOKEN=your_token_here -p 8000:8000 ya2dlna_streaming
+   ```
+
+## Запуск сервера
+
+### Вручную
+
+```bash
+python -m src.api.main
+```
+
+Сервер запустится на `http://0.0.0.0:8000`.
+
+### Через Docker Compose
+
+Скопируйте `docker-compose.yml` и выполните:
+
+```bash
+docker-compose up -d
+```
+
+## Проверка работы API
+
+Убедитесь, что API сервер запущен и доступен:
+
+```bash
+curl http://localhost:8000/ha/devices
+```
+
+Должен вернуться JSON со списком устройств.
+
+Эндпоинты Home Assistant:
+
+- `GET /ha/devices` – список устройств
+- `POST /ha/source/{id}` – выбор источника
+- `POST /ha/target/{id}` – выбор приёмника
+- `POST /ha/stream/start` – запуск стриминга
+- `POST /ha/stream/stop` – остановка стриминга
+
+## Способ 1: RESTful Command + Template Switch (простой)
+
+Добавьте в `configuration.yaml` следующие секции:
+
+```yaml
+rest_command:
+  ya2dlna_set_source:
+    url: "http://<IP>:8000/ha/source/{{ device_id }}"
+    method: POST
+  ya2dlna_set_target:
+    url: "http://<IP>:8000/ha/target/{{ device_id }}"
+    method: POST
+  ya2dlna_start_stream:
+    url: "http://<IP>:8000/ha/stream/start"
+    method: POST
+  ya2dlna_stop_stream:
+    url: "http://<IP>:8000/ha/stream/stop"
+    method: POST
+
+sensor:
+  - platform: rest
+    name: "Ya2DLNA Devices"
+    resource: "http://<IP>:8000/ha/devices"
+    scan_interval: 60
+    value_template: "{{ value_json | length }}"
+    json_attributes:
+      - device_id
+      - name
+      - device_type
+
+switch:
+  - platform: template
+    switches:
+      ya2dlna_streaming:
+        friendly_name: "Ya2DLNA Streaming"
+        value_template: "{{ is_state('sensor.ya2dlna_stream_status', 'streaming') }}"
+        turn_on:
+          service: rest_command.ya2dlna_start_stream
+        turn_off:
+          service: rest_command.ya2dlna_stop_stream
+```
+
+Замените `<IP>` на IP-адрес хоста, где работает сервер.
+
+## Способ 2: Кастомный компонент (более продвинутый)
+
+### Шаг 1: Копирование компонента
+
+Создайте директорию `custom_components/ya2dlna/` в конфигурационной папке Home Assistant (обычно `~/.homeassistant/` или `/config/`).
+
+Скопируйте все файлы из папки `custom_components/ya2dlna/` данного репозитория:
+
+- `manifest.json`
+- `const.py`
+- `__init__.py`
+- `config_flow.py`
+- `switch.py`
+
+### Шаг 2: Перезагрузка Home Assistant
+
+Перезагрузите Home Assistant (через UI: **Настройки → Система → Перезагрузить**).
+
+### Шаг 3: Добавление интеграции
+
+1. Перейдите в **Настройки → Устройства и службы → Добавить интеграцию**.
+2. Найдите "Ya2DLNA Streaming" и нажмите на него.
+3. Введите IP-адрес и порт сервера (по умолчанию `localhost:8000`, если сервер работает на том же хосте).
+4. Нажмите "Отправить".
+
+### Шаг 4: Выбор устройств
+
+После подключения к серверу вам будет предложено выбрать сущности:
+
+1. **Яндекс Станция (источник)** – выберите сущность media_player, соответствующую вашей Яндекс Станции.
+2. **DLNA-устройство (приёмник)** – выберите сущность media_player, соответствующую DLNA-рендереру.
+
+Нажмите "Готово".
+
+### Шаг 5: Использование switch
+
+В разделе устройств появится новый switch "Ya2DLNA Streaming". Его включение запускает стриминг, выключение – останавливает.
+
+## Способ 3: Установка через HACS
+
+[HACS](https://hacs.xyz/) (Home Assistant Community Store) – это магазин пользовательских компонентов для Home Assistant. Интеграция ya2dlna_streaming доступна для установки через HACS.
+
+### Предварительные требования
+
+- Установленный HACS (инструкция по установке: [https://hacs.xyz/docs/setup/download](https://hacs.xyz/docs/setup/download)).
+
+### Добавление репозитория
+
+1. Откройте HACS в интерфейсе Home Assistant.
+2. Перейдите в раздел **Интеграции**.
+3. Нажмите на три точки в правом верхнем углу и выберите **Пользовательские репозитории**.
+4. В поле «Репозиторий» введите URL этого репозитория: `https://github.com/your-repo/ya2dlna_streaming`.
+5. В выпадающем списке выберите **Интеграция**.
+6. Нажмите **Добавить**.
+
+### Установка интеграции
+
+1. После добавления репозитория в списке интеграций HACS появится **Ya2DLNA Streaming**.
+2. Нажмите на него, затем нажмите **Установить**.
+3. Дождитесь завершения установки.
+4. Перезагрузите Home Assistant.
+
+### Настройка
+
+После перезагрузки добавьте интеграцию через UI (Настройки → Устройства и службы → Добавить интеграцию → Ya2DLNA Streaming) и выполните шаги 3–5 из Способа 2.
+
+## Способ 4: Аддон Home Assistant (рекомендуемый)
+
+Аддон автоматически разворачивает сервер ya2dlna_streaming внутри Home Assistant, избавляя от необходимости запускать приложение вручную.
+
+### Установка аддона
+
+#### Для Hass.io / Home Assistant OS
+
+1. Добавьте репозиторий аддонов в Home Assistant:
+   - Перейдите в **Надстройки → Панель надстроек → Добавить хранилище**.
+   - Введите URL репозитория: `https://github.com/your-repo/ya2dlna_streaming`.
+   - Нажмите **Добавить**.
+2. После появления репозитория найдите аддон **Ya2DLNA Streaming** и нажмите **Установить**.
+3. Настройте параметры аддона:
+   - **YANDEX_MUSIC_TOKEN**: ваш токен Яндекс Музыки.
+   - **PORT**: порт сервера (по умолчанию 8000).
+   - **LOG_LEVEL**: уровень логирования.
+4. Запустите аддон.
+
+#### Для Home Assistant Container
+
+Аддон не поддерживается. Используйте Способ 1, 2 или 3.
+
+### Использование
+
+После запуска аддона сервер будет доступен внутри сети Home Assistant по адресу `http://ya2dlna:8000`. Интеграция через кастомный компонент (способ 2 или 3) автоматически обнаружит этот сервер, если в конфигурации указать хост `ya2dlna` и порт `8000`.
+
+## Автоматизация
+
+Пример автоматизации для включения стриминга при воспроизведении музыки на Яндекс Станции:
+
+```yaml
+automation:
+  - alias: "Start streaming when Yandex Station plays"
+    trigger:
+      platform: state
+      entity_id: media_player.yandex_station
+      to: "playing"
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.ya2dlna_streaming
+```
+
+Пример автоматизации для отключения стриминга при паузе:
+
+```yaml
+automation:
+  - alias: "Stop streaming when Yandex Station paused"
+    trigger:
+      platform: state
+      entity_id: media_player.yandex_station
+      to: "paused"
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.ya2dlna_streaming
+```
+
+## Устранение неполадок
+
+### Сервер не запускается
+
+- Проверьте, установлен ли токен Яндекс Музыки.
+- Убедитесь, что порт 8000 не занят.
+- Проверьте логи: `docker logs <container_name>` или журнал приложения.
+
+### Устройства не обнаруживаются
+
+- Убедитесь, что Яндекс Станция и DLNA-устройство находятся в той же сети.
+- Проверьте, что mDNS (Bonjour) работает в сети.
+- Включите UPnP на DLNA-устройстве.
+
+### Интеграция не подключается
+
+- Проверьте, доступен ли сервер из Home Assistant: `curl http://<IP>:8000/ha/devices`.
+- Убедитесь, что в настройках интеграции указан правильный IP и порт.
+
+### Стриминг не работает
+
+- Проверьте, что Яндекс Станция воспроизводит музыку.
+- Убедитесь, что DLNA-устройство включено и доступно.
+- Проверьте логи сервера на наличие ошибок.
+
+## Примечания
+
+- Для работы необходимо, чтобы приложение ya2dlna_streaming было запущено на том же хосте или доступно по сети.
+- Убедитесь, что в настройках приложения (`settings.py`) указаны корректные хосты и порты.
+- Интеграция находится в стадии разработки, возможны изменения.
+- Исходный код и обновления: [GitHub репозиторий](https://github.com/your-repo/ya2dlna_streaming).

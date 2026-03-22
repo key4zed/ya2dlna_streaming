@@ -1,0 +1,7 @@
+{
+  "name": "Ya2DLNA Streaming",
+  "render_readme": true,
+  "domains": ["switch"],
+  "homeassistant": "2023.1.0",
+  "iot_class": "local_polling"
+}

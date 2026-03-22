@@ -1,6 +1,7 @@
 from injector import Injector, Module
 
 from core.dependencies.di_modules import (DeviceFinderModule,
+                                          DeviceManagerModule,
                                           MainStreamManagerModule,
                                           RuarkR5ControllerModule,
                                           StreamHandlerModule,
@@ -22,7 +23,8 @@ class MainDIContainer:
         YandexMusicAPIModule,
         MainStreamManagerModule,
         StreamHandlerModule,
-        DeviceFinderModule
+        DeviceFinderModule,
+        DeviceManagerModule
     ]
 
     def __new__(cls, additional_modules: list[Module] = None):

@@ -1,0 +1,42 @@
+name: "Ya2DLNA Streaming"
+version: "1.0.0"
+slug: "ya2dlna"
+description: "Stream audio from Yandex Station to DLNA device"
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+startup: application
+boot: auto
+host_network: true
+host_dbus: false
+privileged:
+  - NET_ADMIN
+  - SYS_ADMIN
+ports:
+  8000/tcp: 8000
+  8001/tcp: 8001
+ports_description:
+  8000/tcp: "API server port"
+  8001/tcp: "DLNA stream server port"
+map:
+  - config:rw
+options:
+  ya_music_token: ""
+  ruark_pin: ""
+  local_server_host: "0.0.0.0"
+  local_server_port_dlna: 8001
+  local_server_port_api: 8000
+  stream_quality: "192"
+  debug: false
+schema:
+  ya_music_token: str
+  ruark_pin: str
+  local_server_host: str
+  local_server_port_dlna: int
+  local_server_port_api: int
+  stream_quality: str
+  debug: bool
+image: "ghcr.io/{username}/ya2dlna-{arch}"

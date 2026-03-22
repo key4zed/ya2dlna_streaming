@@ -2,6 +2,7 @@ from injector import Module, provider, singleton
 from yandex_music import ClientAsync
 
 from core.config.settings import settings
+from core.device_manager import DeviceManager
 from dlna_stream_server.handlers.stream_handler import StreamHandler
 from main_stream_service.main_stream_manager import MainStreamManager
 from main_stream_service.yandex_music_api import YandexMusicAPI
@@ -94,3 +95,11 @@ class ProtobufModule(Module):
     @provider
     def provide_protobuf(self) -> Protobuf:
         return Protobuf()
+
+
+class DeviceManagerModule(Module):
+    """Класс для управления зависимостями DeviceManager"""
+    @singleton
+    @provider
+    def provide_device_manager(self) -> DeviceManager:
+        return DeviceManager()
