@@ -1,9 +1,10 @@
 import asyncio
 from logging import getLogger
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 
+from core.config.settings import settings
 from core.dependencies.main_di_container import MainDIContainer
 from core.device_manager import DeviceManager
 from core.models.devices import (
@@ -79,7 +80,10 @@ async def get_config():
 
 
 @router.post("/stream/start")
-async def start_streaming():
+async def start_streaming(
+    x_token: Optional[str] = None,
+    cookie: Optional[str] = None,
+):
     """Запустить стриминг с активного источника на активный приёмник."""
     source = device_manager.get_active_source()
     target = device_manager.get_active_target()
@@ -88,6 +92,11 @@ async def start_streaming():
             status_code=400,
             detail="Не установлены активные источник и/или приёмник"
         )
+    # Обновляем настройки авторизации, если переданы
+    if x_token is not None:
+        settings.x_token = x_token
+    if cookie is not None:
+        settings.cookie = cookie
     # TODO: интегрировать с MainStreamManager для конкретных устройств
     # Пока используем существующий менеджер (который работает с предопределёнными устройствами)
     asyncio.create_task(main_stream_manager.start())

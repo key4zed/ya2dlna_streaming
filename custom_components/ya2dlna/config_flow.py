@@ -10,6 +10,8 @@ from .const import (
     CONF_TARGET_ENTITY,
     CONF_API_HOST,
     CONF_API_PORT,
+    CONF_X_TOKEN,
+    CONF_COOKIE,
     DEFAULT_API_HOST,
     DEFAULT_API_PORT,
 )
@@ -45,12 +47,17 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required(CONF_TARGET_ENTITY): target_selector,
             vol.Optional(CONF_API_HOST, default=DEFAULT_API_HOST): str,
             vol.Optional(CONF_API_PORT, default=DEFAULT_API_PORT): int,
+            vol.Optional(CONF_X_TOKEN, default=""): str,
+            vol.Optional(CONF_COOKIE, default=""): str,
         })
 
         return self.async_show_form(
             step_id="user",
             data_schema=data_schema,
             errors=errors,
+            description_placeholders={
+                "note": "Если вы используете интеграцию YandexStation, вы можете взять x-token и cookie из её настроек. Оставьте пустыми, если используете OAuth токен Яндекс Музыки."
+            },
         )
 
     @staticmethod
@@ -81,6 +88,14 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
                 CONF_API_PORT,
                 default=self.config_entry.options.get(CONF_API_PORT, DEFAULT_API_PORT),
             ): int,
+            vol.Optional(
+                CONF_X_TOKEN,
+                default=self.config_entry.options.get(CONF_X_TOKEN, ""),
+            ): str,
+            vol.Optional(
+                CONF_COOKIE,
+                default=self.config_entry.options.get(CONF_COOKIE, ""),
+            ): str,
         })
         return self.async_show_form(
             step_id="init",

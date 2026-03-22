@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -25,6 +26,10 @@ class Settings(BaseSettings):
 
     # Yandex Music settings
     ya_music_token: str
+
+    # Yandex Station авторизация (альтернатива ya_music_token)
+    x_token: Optional[str] = None
+    cookie: Optional[str] = None
 
     # API server settings
     local_server_host: str

@@ -11,7 +11,7 @@ from typing import Dict, Tuple
 import aiohttp
 from injector import inject
 
-from core.authorization.yandex_tokens import get_device_token
+from core.authorization.yandex_tokens import get_device_token, get_device_token_with_auth
 from yandex_station.constants import SOCKET_RECONNECT_DELAY
 from yandex_station.exceptions import ClientNotRunningError
 from yandex_station.mdns_device_finder import DeviceFinder
@@ -27,10 +27,14 @@ class YandexStationClient:
         self,
         device_finder: DeviceFinder,
         device_token: str = None,
+        x_token: str = None,
+        cookie: str = None,
         buffer_size: int = 10,
     ):
         self.device_finder = device_finder
         self.device_token = device_token
+        self.x_token = x_token
+        self.cookie = cookie
         self.queue = deque(maxlen=buffer_size)  # Очередь для сообщений станции
         self.waiters: Dict[str, Tuple[asyncio.Future, float]] = {}
         self.lock = asyncio.Lock()
@@ -78,9 +82,14 @@ class YandexStationClient:
 
                 try:
                     if not self.device_token:
-                        self.device_token = await get_device_token(
-                            self.device_id, self.platform
-                        )
+                        if self.x_token:
+                            self.device_token = await get_device_token_with_auth(
+                                self.device_id, self.platform, self.x_token, self.cookie
+                            )
+                        else:
+                            self.device_token = await get_device_token(
+                                self.device_id, self.platform
+                            )
 
                     if (
                         self.websocket is not None
@@ -287,9 +296,14 @@ class YandexStationClient:
         """Запрашивает новый токен и перезапускает WebSocket."""
         logger.info("🔄 Запрос нового токена...")
         # Здесь вызываем функцию обновления токена
-        self.device_token = await get_device_token(
-            self.device_id, self.platform
-        )
+        if self.x_token:
+            self.device_token = await get_device_token_with_auth(
+                self.device_id, self.platform, self.x_token, self.cookie
+            )
+        else:
+            self.device_token = await get_device_token(
+                self.device_id, self.platform
+            )
         logger.info("✅ Новый токен получен. Переподключение...")
         await asyncio.sleep(1)
 

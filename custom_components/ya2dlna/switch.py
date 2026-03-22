@@ -10,6 +10,8 @@ from .const import (
     CONF_TARGET_ENTITY,
     CONF_API_HOST,
     CONF_API_PORT,
+    CONF_X_TOKEN,
+    CONF_COOKIE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -21,6 +23,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     api_port = config_entry.data.get(CONF_API_PORT, 8000)
     source_entity = config_entry.data.get(CONF_SOURCE_ENTITY)
     target_entity = config_entry.data.get(CONF_TARGET_ENTITY)
+    x_token = config_entry.data.get(CONF_X_TOKEN, "")
+    cookie = config_entry.data.get(CONF_COOKIE, "")
 
     switch = Ya2DLNASwitch(
         hass,
@@ -28,6 +32,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         api_port,
         source_entity,
         target_entity,
+        x_token,
+        cookie,
         config_entry.entry_id,
     )
     async_add_entities([switch])
@@ -36,13 +42,15 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class Ya2DLNASwitch(SwitchEntity):
     """Representation of a streaming switch."""
 
-    def __init__(self, hass, api_host, api_port, source_entity, target_entity, entry_id):
+    def __init__(self, hass, api_host, api_port, source_entity, target_entity, x_token, cookie, entry_id):
         """Initialize the switch."""
         self.hass = hass
         self._api_host = api_host
         self._api_port = api_port
         self._source_entity = source_entity
         self._target_entity = target_entity
+        self._x_token = x_token
+        self._cookie = cookie
         self._entry_id = entry_id
         self._state = False
         self._attr_name = "Ya2DLNA Streaming"
@@ -69,9 +77,15 @@ class Ya2DLNASwitch(SwitchEntity):
                 await session.post(
                     f"http://{self._api_host}:{self._api_port}/ha/target/{self._target_entity}"
                 )
-                # Запустить стриминг
+                # Запустить стриминг с передачей x_token и cookie, если они есть
+                params = {}
+                if self._x_token:
+                    params["x_token"] = self._x_token
+                if self._cookie:
+                    params["cookie"] = self._cookie
                 await session.post(
-                    f"http://{self._api_host}:{self._api_port}/ha/stream/start"
+                    f"http://{self._api_host}:{self._api_port}/ha/stream/start",
+                    params=params if params else None,
                 )
                 self._state = True
                 self.async_write_ha_state()
