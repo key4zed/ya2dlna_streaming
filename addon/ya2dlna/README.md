@@ -1,27 +1,27 @@
-# Ya2DLNA Streaming Add‑on
+# Аддон Ya2DLNA Streaming
 
-This add‑on runs the ya2dlna_streaming application as a service inside Home Assistant.
+Этот аддон запускает приложение ya2dlna_streaming как сервис внутри Home Assistant.
 
-## Configuration
+## Конфигурация
 
-Configure the add‑on via the Home Assistant UI (Settings → Add‑ons → Ya2DLNA Streaming → Configuration). The following options are available:
+Настройте аддон через интерфейс Home Assistant (Настройки → Аддоны → Ya2DLNA Streaming → Конфигурация). Доступны следующие параметры:
 
-- **ya_music_token** – Yandex Music API token (required).
-- **ruark_pin** – PIN code for Ruark R5 (if using Ruark).
-- **local_server_host** – Host address for the streaming server (default: `0.0.0.0`).
-- **local_server_port_dlna** – Port for DLNA streaming server (default: `8001`).
-- **local_server_port_api** – Port for REST API (default: `8000`).
-- **stream_quality** – Audio quality (`192`, `320`, etc.).
-- **debug** – Enable debug logging.
+- **ya_music_token** – Токен API Яндекс Музыки (обязательный).
+- **ruark_pin** – PIN-код для Ruark R5 (если используется Ruark).
+- **local_server_host** – Хост для сервера стриминга (по умолчанию: `0.0.0.0`).
+- **local_server_port_dlna** – Порт DLNA-сервера (по умолчанию: `8001`).
+- **local_server_port_api** – Порт REST API (по умолчанию: `8000`).
+- **stream_quality** – Качество аудио (`192`, `320` и т.д.).
+- **debug** – Включить отладочное логирование.
 
-## Usage
+## Использование
 
-After starting the add‑on, the streaming server will be available at `http://<hassio_ip>:8000`. The custom component `ya2dlna` can then communicate with this server.
+После запуска аддона сервер стриминга будет доступен по адресу `http://<hassio_ip>:8000`. Кастомный компонент `ya2dlna` может взаимодействовать с этим сервером.
 
-## Logs
+## Логи
 
-Logs are available in the add‑on log panel.
+Логи доступны в панели логов аддона.
 
-## Support
+## Поддержка
 
-For issues, please refer to the [main project repository](https://github.com/your-repo/ya2dlna_streaming).
+При возникновении проблем обратитесь к [основному репозиторию проекта](https://github.com/key4zed/ya2dlna_streaming).
