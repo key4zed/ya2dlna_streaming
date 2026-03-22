@@ -1,12 +1,11 @@
-ARG BUILD_FROM
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:latest
 FROM $BUILD_FROM
 
 # Установка зависимостей
 RUN apk add --no-cache \
     python3 \
     py3-pip \
-    ffmpeg \
-    upnp-tools
+    ffmpeg
 
 # Копирование исходного кода
 COPY . /app
