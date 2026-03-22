@@ -12,7 +12,7 @@ COPY . /app
 WORKDIR /app
 
 # Установка Python-зависимостей
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Создание директории для конфигурации
 RUN mkdir -p /data
