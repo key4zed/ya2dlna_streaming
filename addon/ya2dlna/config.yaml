@@ -16,6 +16,7 @@ ports:
   8001/tcp: 8001
 map:
   - config:rw
+logo: "logo.png"
 options:
   ya_music_token: ""
   ruark_pin: ""
