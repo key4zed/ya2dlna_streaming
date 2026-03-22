@@ -37,4 +37,4 @@
 
 - [Документация на русском](docs/home_assistant_setup.md)
 - [Documentation in English](docs/home_assistant_setup_en.md)
-- [Исходный код](https://github.com/your-repo/ya2dlna_streaming)
+- [Исходный код](https://github.com/key4zed/ya2dlna_streaming)

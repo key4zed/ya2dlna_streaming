@@ -1,5 +1,5 @@
 name: "Ya2DLNA Streaming"
-version: "1.0.3"
+version: "1.0.4"
 slug: "ya2dlna"
 description: "Stream audio from Yandex Station to DLNA device"
 arch:
@@ -11,16 +11,9 @@ arch:
 startup: application
 boot: auto
 host_network: true
-host_dbus: false
-privileged:
-  - NET_ADMIN
-  - SYS_ADMIN
 ports:
   8000/tcp: 8000
   8001/tcp: 8001
-ports_description:
-  8000/tcp: "API server port"
-  8001/tcp: "DLNA stream server port"
 map:
   - config:rw
 options:
@@ -39,7 +32,6 @@ schema:
   local_server_port_api: int
   stream_quality: str
   debug: bool
-image: "local/ya2dlna-{arch}"
 build_from:
   aarch64: ghcr.io/home-assistant/aarch64-base:3.19
   amd64: ghcr.io/home-assistant/amd64-base:3.19
