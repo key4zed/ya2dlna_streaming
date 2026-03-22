@@ -12,6 +12,14 @@ APP_STREAM_QUALITY=${stream_quality}
 APP_DEBUG=${debug}
 EOF
 
-# Запуск приложения
+# Запуск API сервиса в фоне
 cd /app
-exec python3 -m src.main
+python3 -m src.api.main &
+API_PID=$!
+
+# Запуск DLNA сервера в фоне
+python3 -m src.dlna_stream_server.main &
+DLNA_PID=$!
+
+# Ожидание завершения любого из процессов
+wait $API_PID $DLNA_PID
