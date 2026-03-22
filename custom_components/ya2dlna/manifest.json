@@ -2,11 +2,13 @@
   "domain": "ya2dlna",
   "name": "Ya2DLNA Streaming",
   "documentation": "https://github.com/key4zed/ya2dlna_streaming",
+  "issue_tracker": "https://github.com/key4zed/ya2dlna_streaming/issues",
   "dependencies": [],
   "codeowners": ["@key4zed"],
   "requirements": [],
   "version": "1.0.0",
   "config_flow": true,
   "iot_class": "local_polling",
+  "homeassistant": "2023.1.0",
   "icon": "https://raw.githubusercontent.com/key4zed/ya2dlna_streaming/main/assets/logo.png"
 }
