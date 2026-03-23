@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "source_entity": "Источник (Яндекс Станция)",
+          "target_entity": "Цель (DLNA-рендерер)",
+          "api_host": "Хост API",
+          "api_port": "Порт API",
+          "x_token": "X-Token Яндекс",
+          "cookie": "Cookie Яндекс"
+        },
+        "description": "Настройка потоковой передачи музыки с Яндекс Станции на DLNA-устройство.{note}",
+        "title": "Ya2DLNA Streaming"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "api_host": "Хост API",
+          "api_port": "Порт API",
+          "x_token": "X-Token Яндекс",
+          "cookie": "Cookie Яндекс"
+        },
+        "description": "Настройки интеграции Ya2DLNA.",
+        "title": "Настройки Ya2DLNA"
+      }
+    }
+  }
+}

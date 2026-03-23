@@ -3,7 +3,7 @@ import logging
 import aiohttp
 
 from core.config.settings import settings
-from core.authorization.yandex_session_adapted import YandexSessionAdapted
+from core.authorization.yandex_session_adapted import YandexSessionAdapted, AuthException
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +48,10 @@ async def get_device_token_via_oauth(device_id: str, platform: str) -> str:
                     logger.error(
                         f"❌ Ошибка получения токена: {response_data}"
                     )
-                    return None
+                    raise AuthException(f"Ошибка получения токена: {response_data}")
         except Exception as e:
             logger.error(f"❌ Ошибка получения токена: {e}")
-            return None
+            raise AuthException(f"Ошибка получения токена: {e}")
 
 
 async def get_device_token_via_session(device_id: str, platform: str, x_token: str, cookie: str | None = None) -> str:
@@ -69,9 +69,9 @@ async def get_device_token_via_session(device_id: str, platform: str, x_token: s
             return token
         else:
             logger.error(f"❌ Ошибка получения токена: {response_data}")
-            return None
+            raise AuthException(f"Ошибка получения токена: {response_data}")
     except Exception as e:
         logger.error(f"❌ Ошибка получения токена через YandexSession: {e}")
-        return None
+        raise AuthException(f"Ошибка получения токена через YandexSession: {e}")
     finally:
         await session.close()

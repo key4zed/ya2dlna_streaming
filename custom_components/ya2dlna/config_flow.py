@@ -18,10 +18,19 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Домены интеграций Yandex Station, которые мы можем использовать для импорта
+YANDEX_STATION_DOMAINS = ["yandex_station", "yandex_station_intents"]
+
+
 class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Ya2DLNA."""
 
     VERSION = 1
+
+    def __init__(self):
+        """Initialize the config flow."""
+        self.imported_x_token = None
+        self.imported_cookie = None
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
@@ -33,30 +42,71 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Можно добавить дополнительную валидацию
             return self.async_create_entry(title="Ya2DLNA Streaming", data=user_input)
 
-        # Получить список медиа-плееров
-        media_players = self.hass.states.async_entity_ids("media_player")
+        # Селектор для источника (Яндекс Станции)
         source_selector = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain="media_player", multiple=False)
+            selector.EntitySelectorConfig(
+                filter=[
+                    {"domain": "media_player", "integration": "yandex_station"},
+                    {"domain": "media_player", "integration": "yandex_station_intents"},
+                ],
+                multiple=False,
+            )
         )
+        # Селектор для цели (DLNA-рендереры)
         target_selector = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain="media_player", multiple=False)
+            selector.EntitySelectorConfig(
+                filter=[
+                    {"domain": "media_player", "integration": "dlna_dmr"},
+                ],
+                multiple=False,
+            )
         )
+
+        # Попытаться найти интеграции Yandex Station для импорта данных
+        yandex_entries = []
+        for domain in YANDEX_STATION_DOMAINS:
+            yandex_entries.extend(self.hass.config_entries.async_entries(domain))
+
+        # Если есть хотя бы одна запись, предложим импортировать
+        import_options = []
+        if yandex_entries:
+            for entry in yandex_entries:
+                import_options.append(
+                    f"{entry.title} ({entry.domain})"
+                )
+
+        # Определить значения по умолчанию для x_token и cookie
+        default_x_token = ""
+        default_cookie = ""
+        if len(yandex_entries) == 1:
+            # Автоматически подставляем данные из единственной найденной интеграции
+            entry = yandex_entries[0]
+            default_x_token = entry.data.get("x_token", "")
+            default_cookie = entry.data.get("cookie", "")
+            # Также можно попробовать получить cookie из сессии, но это сложнее
+            # Пока просто используем то, что есть в data
 
         data_schema = vol.Schema({
             vol.Required(CONF_SOURCE_ENTITY): source_selector,
             vol.Required(CONF_TARGET_ENTITY): target_selector,
             vol.Optional(CONF_API_HOST, default=DEFAULT_API_HOST): str,
             vol.Optional(CONF_API_PORT, default=DEFAULT_API_PORT): int,
-            vol.Optional(CONF_X_TOKEN, default=""): str,
-            vol.Optional(CONF_COOKIE, default=""): str,
+            vol.Optional(CONF_X_TOKEN, default=default_x_token): str,
+            vol.Optional(CONF_COOKIE, default=default_cookie): str,
         })
+
+        note = ""
+        if yandex_entries:
+            note = f" Найдены интеграции: {', '.join(import_options)}. Значения x-token и cookie были автоматически подставлены, если они доступны."
+        else:
+            note = " Если вы используете интеграцию YandexStation, вы можете взять x-token и cookie из её настроек. Оставьте пустыми, если используете OAuth токен Яндекс Музыки."
 
         return self.async_show_form(
             step_id="user",
             data_schema=data_schema,
             errors=errors,
             description_placeholders={
-                "note": "Если вы используете интеграцию YandexStation, вы можете взять x-token и cookie из её настроек. Оставьте пустыми, если используете OAuth токен Яндекс Музыки."
+                "note": note
             },
         )
 
