@@ -25,6 +25,9 @@ di_container = MainDIContainer().get_container()
 device_manager = di_container.get(DeviceManager)
 main_stream_manager = di_container.get(MainStreamManager)
 
+# Глобальный флаг состояния стриминга
+streaming_active = False
+
 
 @router.get("/devices", response_model=List[DeviceInfo])
 async def list_devices():
@@ -85,6 +88,7 @@ async def start_streaming(
     cookie: Optional[str] = None,
 ):
     """Запустить стриминг с активного источника на активный приёмник."""
+    global streaming_active
     source = device_manager.get_active_source()
     target = device_manager.get_active_target()
     if not source or not target:
@@ -99,19 +103,34 @@ async def start_streaming(
         settings.cookie = cookie
     # TODO: интегрировать с MainStreamManager для конкретных устройств
     # Пока используем существующий менеджер (который работает с предопределёнными устройствами)
-    asyncio.create_task(main_stream_manager.start())
-    return {"message": "Стриминг запущен"}
+    try:
+        asyncio.create_task(main_stream_manager.start())
+        streaming_active = True
+        logger.info("Стриминг запущен через менеджер")
+        return {"message": "Стриминг запущен"}
+    except Exception as e:
+        logger.error(f"Ошибка при запуске стриминга: {e}")
+        raise HTTPException(status_code=500, detail="Не удалось запустить стриминг")
 
 
 @router.post("/stream/stop")
 async def stop_streaming():
     """Остановить стриминг."""
-    await main_stream_manager.stop()
-    return {"message": "Стриминг остановлен"}
+    global streaming_active
+    try:
+        await main_stream_manager.stop()
+        streaming_active = False
+        logger.info("Стриминг остановлен через менеджер")
+        return {"message": "Стриминг остановлен"}
+    except Exception as e:
+        logger.error(f"Ошибка при остановке стриминга: {e}")
+        raise HTTPException(status_code=500, detail="Не удалось остановить стриминг")
 
 
 @router.get("/stream/status")
 async def get_stream_status():
     """Получить статус стриминга."""
+    global streaming_active
     # TODO: получить реальный статус из MainStreamManager
-    return {"status": "unknown"}
+    status = "streaming" if streaming_active else "idle"
+    return {"status": status}

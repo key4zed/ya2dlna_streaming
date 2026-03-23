@@ -68,53 +68,74 @@ class Ya2DLNASwitch(SwitchEntity):
         # В реальности нужно сопоставить entity_id с device_id через API обнаружения
         # Здесь упрощённая логика: отправляем entity_id как device_id
         try:
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 # Установить источник
-                await session.post(
+                resp = await session.post(
                     f"http://{self._api_host}:{self._api_port}/ha/source/{self._source_entity}"
                 )
+                if resp.status not in (200, 201, 204):
+                    _LOGGER.warning(f"Failed to set source: {resp.status}")
                 # Установить приёмник
-                await session.post(
+                resp = await session.post(
                     f"http://{self._api_host}:{self._api_port}/ha/target/{self._target_entity}"
                 )
+                if resp.status not in (200, 201, 204):
+                    _LOGGER.warning(f"Failed to set target: {resp.status}")
                 # Запустить стриминг с передачей x_token и cookie, если они есть
                 params = {}
                 if self._x_token:
                     params["x_token"] = self._x_token
                 if self._cookie:
                     params["cookie"] = self._cookie
-                await session.post(
+                resp = await session.post(
                     f"http://{self._api_host}:{self._api_port}/ha/stream/start",
                     params=params if params else None,
                 )
-                self._state = True
-                self.async_write_ha_state()
-                _LOGGER.info("Ya2DLNA streaming started")
+                if resp.status not in (200, 201, 204):
+                    _LOGGER.warning(f"Failed to start streaming: {resp.status}")
+                else:
+                    self._state = True
+                    self.async_write_ha_state()
+                    _LOGGER.info("Ya2DLNA streaming started")
+        except asyncio.TimeoutError:
+            _LOGGER.error("Timeout while starting streaming")
         except Exception as e:
             _LOGGER.error(f"Failed to start streaming: {e}")
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
         try:
-            async with aiohttp.ClientSession() as session:
-                await session.post(
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                resp = await session.post(
                     f"http://{self._api_host}:{self._api_port}/ha/stream/stop"
                 )
-                self._state = False
-                self.async_write_ha_state()
-                _LOGGER.info("Ya2DLNA streaming stopped")
+                if resp.status not in (200, 201, 204):
+                    _LOGGER.warning(f"Failed to stop streaming: {resp.status}")
+                else:
+                    self._state = False
+                    self.async_write_ha_state()
+                    _LOGGER.info("Ya2DLNA streaming stopped")
+        except asyncio.TimeoutError:
+            _LOGGER.error("Timeout while stopping streaming")
         except Exception as e:
             _LOGGER.error(f"Failed to stop streaming: {e}")
 
     async def async_update(self):
         """Update switch state by polling API."""
         try:
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(
                     f"http://{self._api_host}:{self._api_port}/ha/stream/status"
                 ) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         self._state = data.get("status") == "streaming"
+                    else:
+                        _LOGGER.debug(f"Status endpoint returned {resp.status}")
+        except asyncio.TimeoutError:
+            _LOGGER.debug("Timeout while updating switch state")
         except Exception as e:
             _LOGGER.debug(f"Could not update switch state: {e}")
