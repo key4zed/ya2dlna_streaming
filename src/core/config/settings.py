@@ -46,5 +46,9 @@ class Settings(BaseSettings):
     stream_quality: str = "192"
     stream_is_local_file: bool = False
 
+    # Yandex Music API settings
+    yandex_music_timeout: int = 15  # seconds
+    yandex_music_cache_ttl: int = 300  # seconds
+
 
 settings = Settings()
