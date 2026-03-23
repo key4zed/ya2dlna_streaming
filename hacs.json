@@ -4,8 +4,5 @@
   "homeassistant": "2023.1.0",
   "country": "ru",
   "content_in_root": false,
-  "filename": "ya2dlna",
-  "zip_release": false,
-  "hide_default_branch": false,
-  "hacs": "1.0.0"
+  "zip_release": false
 }
