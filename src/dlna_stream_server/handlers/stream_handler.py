@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
 from core.config.settings import settings
-from ruark_audio_system.ruark_r5_controller import RuarkR5Controller
+from dlna_stream_server.handlers.dlna_controller import DLNAController
 
 from .constants import (FFMPEG_AAC_PARAMS, FFMPEG_LOCAL_MP3_PARAMS,
                         FFMPEG_MP3_PARAMS)
@@ -17,12 +17,12 @@ logger = getLogger(__name__)
 
 
 class StreamHandler:
-    """Класс для управления потоковой передачей и воспроизведением на Ruark."""
-    def __init__(self, ruark_controls: RuarkR5Controller):
+    """Класс для управления потоковой передачей и воспроизведением на DLNA‑устройстве."""
+    def __init__(self, dlna_controls: DLNAController):
         self._radio_url: str | None = None
-        self._ruark_lock = asyncio.Lock()
+        self._dlna_lock = asyncio.Lock()
         self._ffmpeg_process: asyncio.subprocess.Process | None = None
-        self._ruark_controls = ruark_controls
+        self._dlna_controls = dlna_controls
         self._current_url: str | None = None
         self._current_radio: bool = False
         self._current_ffmpeg_params: list[str] | None = None
@@ -33,8 +33,8 @@ class StreamHandler:
         self._is_restarting = False
 
     async def execute_with_lock(self, func, *args, **kwargs):
-        """Выполняет вызов UPnP-команды в Ruark с блокировкой."""
-        async with self._ruark_lock:
+        """Выполняет вызов UPnP-команды в DLNA‑устройство с блокировкой."""
+        async with self._dlna_lock:
             for attempt in range(3):
                 try:
                     logger.debug(
@@ -207,11 +207,11 @@ class StreamHandler:
                 f"?radio={str(self._current_radio).lower()}"
             )
             await self.execute_with_lock(
-                self._ruark_controls.set_av_transport_uri,
+                self._dlna_controls.set_av_transport_uri,
                 track_url
             )
             await self.execute_with_lock(
-                self._ruark_controls.play
+                self._dlna_controls.play
             )
             self._restart_attempts = 0
             logger.info("✅ Поток успешно перезапущен быстрой логикой!")
@@ -512,7 +512,7 @@ class StreamHandler:
             self._restart_task = None
 
     async def play_stream(self, yandex_url: str, radio: bool = False):
-        """Запускает потоковую трансляцию и передает её на Ruark."""
+        """Запускает потоковую трансляцию и передает её на DLNA‑устройство."""
         logger.info(f"🎶 Начинаем потоковое воспроизведение {yandex_url}")
 
         # Сбрасываем счетчик попыток и флаги для нового потока
@@ -531,13 +531,13 @@ class StreamHandler:
 
             # Устанавливаем новый поток
             await self.execute_with_lock(
-                self._ruark_controls.set_av_transport_uri,
+                self._dlna_controls.set_av_transport_uri,
                 track_url
             )
 
             # Запускаем воспроизведение
             await self.execute_with_lock(
-                self._ruark_controls.play
+                self._dlna_controls.play
             )
 
             logger.info("✅ Переключение трека завершено быстро!")

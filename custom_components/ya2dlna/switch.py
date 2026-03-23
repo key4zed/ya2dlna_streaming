@@ -12,6 +12,9 @@ from .const import (
     CONF_API_PORT,
     CONF_X_TOKEN,
     CONF_COOKIE,
+    CONF_RUARK_PIN,
+    CONF_MUTE_YANDEX_STATION,
+    DEFAULT_MUTE_YANDEX_STATION,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,6 +28,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     target_entity = config_entry.data.get(CONF_TARGET_ENTITY)
     x_token = config_entry.data.get(CONF_X_TOKEN, "")
     cookie = config_entry.data.get(CONF_COOKIE, "")
+    ruark_pin = config_entry.data.get(CONF_RUARK_PIN, "")
+    mute_yandex_station = config_entry.data.get(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
 
     switch = Ya2DLNASwitch(
         hass,
@@ -34,6 +39,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         target_entity,
         x_token,
         cookie,
+        ruark_pin,
+        mute_yandex_station,
         config_entry.entry_id,
     )
     async_add_entities([switch])
@@ -42,7 +49,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class Ya2DLNASwitch(SwitchEntity):
     """Representation of a streaming switch."""
 
-    def __init__(self, hass, api_host, api_port, source_entity, target_entity, x_token, cookie, entry_id):
+    def __init__(self, hass, api_host, api_port, source_entity, target_entity, x_token, cookie, ruark_pin, mute_yandex_station, entry_id):
         """Initialize the switch."""
         self.hass = hass
         self._api_host = api_host
@@ -51,6 +58,8 @@ class Ya2DLNASwitch(SwitchEntity):
         self._target_entity = target_entity
         self._x_token = x_token
         self._cookie = cookie
+        self._ruark_pin = ruark_pin
+        self._mute_yandex_station = mute_yandex_station
         self._entry_id = entry_id
         self._state = False
         self._attr_name = "Ya2DLNA Streaming"
@@ -82,12 +91,16 @@ class Ya2DLNASwitch(SwitchEntity):
                 )
                 if resp.status not in (200, 201, 204):
                     _LOGGER.warning(f"Failed to set target: {resp.status}")
-                # Запустить стриминг с передачей x_token и cookie, если они есть
+                # Запустить стриминг с передачей x_token, cookie, ruark_pin и mute_yandex_station, если они есть
                 params = {}
                 if self._x_token:
                     params["x_token"] = self._x_token
                 if self._cookie:
                     params["cookie"] = self._cookie
+                if self._ruark_pin:
+                    params["ruark_pin"] = self._ruark_pin
+                if self._mute_yandex_station is not None:
+                    params["mute_yandex_station"] = str(self._mute_yandex_station).lower()
                 resp = await session.post(
                     f"http://{self._api_host}:{self._api_port}/ha/stream/start",
                     params=params if params else None,

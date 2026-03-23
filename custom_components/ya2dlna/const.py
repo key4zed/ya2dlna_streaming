@@ -9,6 +9,18 @@ CONF_API_HOST = "api_host"
 CONF_API_PORT = "api_port"
 CONF_X_TOKEN = "x_token"
 CONF_COOKIE = "cookie"
+CONF_AUTH_METHOD = "auth_method"
+CONF_RUARK_PIN = "ruark_pin"
+CONF_MUTE_YANDEX_STATION = "mute_yandex_station"
+CONF_CONTROLLER_TYPE = "controller_type"
 
 DEFAULT_API_HOST = "localhost"
 DEFAULT_API_PORT = 8000
+DEFAULT_MUTE_YANDEX_STATION = True
+
+AUTH_METHOD_YANDEX_STATION = "yandex_station"
+AUTH_METHOD_COOKIES = "cookies"
+AUTH_METHOD_TOKEN = "token"
+
+CONTROLLER_TYPE_RUARK = "ruark"
+CONTROLLER_TYPE_UNIVERSAL = "universal"

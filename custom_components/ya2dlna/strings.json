@@ -3,30 +3,71 @@
     "step": {
       "user": {
         "data": {
+          "auth_method": "Метод аутентификации"
+        },
+        "description": "Выберите метод аутентификации для доступа к Яндекс Музыке.",
+        "title": "Метод аутентификации"
+      },
+      "yandex_station": {
+        "data": {
+          "entry": "Интеграция Yandex.Station"
+        },
+        "description": "Выберите интеграцию Yandex.Station, из которой будут импортированы токен и cookie.",
+        "title": "Выбор интеграции"
+      },
+      "cookies": {
+        "data": {
+          "cookie": "Cookie Яндекс"
+        },
+        "description": "Введите cookie Яндекс (сериализованный pickle в base64).",
+        "title": "Ввод cookie"
+      },
+      "token": {
+        "data": {
+          "x_token": "X-Token Яндекс"
+        },
+        "description": "Введите X-Token Яндекс (OAuth токен).",
+        "title": "Ввод токена"
+      },
+      "config": {
+        "data": {
           "source_entity": "Источник (Яндекс Станция)",
           "target_entity": "Цель (DLNA-рендерер)",
           "api_host": "Хост API",
           "api_port": "Порт API",
-          "x_token": "X-Token Яндекс",
-          "cookie": "Cookie Яндекс"
+          "ruark_pin": "PIN для Ruark R5 (опционально)",
+          "mute_yandex_station": "Отключать звук на Яндекс Станции во время трансляции"
         },
-        "description": "Настройка потоковой передачи музыки с Яндекс Станции на DLNA-устройство.{note}",
-        "title": "Ya2DLNA Streaming"
+        "description": "Настройка устройств и параметров API.",
+        "title": "Настройка устройств"
       }
+    },
+    "error": {
+      "unknown_auth_method": "Неизвестный метод аутентификации",
+      "no_auth_data": "В выбранной интеграции отсутствуют данные аутентификации",
+      "entry_not_found": "Интеграция не найдена",
+      "invalid_cookie": "Неверный формат cookie",
+      "invalid_token": "Неверный токен",
+      "no_integrations": "Не найдено интеграций Yandex.Station. Установите интеграцию Yandex.Station или выберите другой метод аутентификации."
+    },
+    "abort": {
+      "already_configured": "Устройство уже настроено"
     }
   },
   "options": {
-    "step": {
-      "init": {
-        "data": {
-          "api_host": "Хост API",
-          "api_port": "Порт API",
-          "x_token": "X-Token Яндекс",
-          "cookie": "Cookie Яндекс"
-        },
-        "description": "Настройки интеграции Ya2DLNA.",
-        "title": "Настройки Ya2DLNA"
-      }
+  "step": {
+    "init": {
+      "data": {
+        "api_host": "Хост API",
+        "api_port": "Порт API",
+        "x_token": "X-Token Яндекс (можно импортировать из интеграции Yandex.Station)",
+        "cookie": "Cookie Яндекс (можно импортировать из интеграции Yandex.Station)",
+        "ruark_pin": "PIN для Ruark R5 (опционально)",
+        "mute_yandex_station": "Отключать звук на Яндекс Станции во время трансляции"
+      },
+      "description": "Настройки интеграции Ya2DLNA.",
+      "title": "Настройки Ya2DLNA"
     }
   }
+}
 }

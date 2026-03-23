@@ -2,13 +2,14 @@ import asyncio
 from logging import getLogger
 from typing import Dict, List, Optional
 
+from core.config.settings import settings
 from core.models.devices import (
     DeviceInfo,
     DeviceType,
     DlnaRenderer,
     YandexStation,
 )
-from ruark_audio_system.ruark_r5_controller import RuarkR5Controller
+from dlna_stream_server.handlers.dlna_controller import DLNAController
 from yandex_station.mdns_device_finder import DeviceFinder
 
 logger = getLogger(__name__)
@@ -19,7 +20,9 @@ class DeviceManager:
 
     def __init__(self):
         self._yandex_finder = DeviceFinder()
-        self._ruark_controller = RuarkR5Controller()
+        # Используем имя устройства из настроек, если указано, иначе "DLNA Renderer"
+        device_name = settings.dlna_device_name or "DLNA Renderer"
+        self._dlna_controller = DLNAController(device_name=device_name)
         self._devices: Dict[str, DeviceInfo] = {}
         self._active_source_id: Optional[str] = None
         self._active_target_id: Optional[str] = None
@@ -49,16 +52,16 @@ class DeviceManager:
     async def discover_dlna_renderers(self) -> List[DlnaRenderer]:
         """Обнаружить DLNA-рендереры в сети."""
         logger.info("Поиск DLNA-устройств...")
-        # Используем существующий RuarkR5Controller для поиска устройств
-        self._ruark_controller.refresh_device()
-        device = self._ruark_controller.device
+        # Используем существующий DLNAController для поиска устройств
+        self._dlna_controller.refresh_device()
+        device = self._dlna_controller.device
         renderers = []
         if device:
             renderer = DlnaRenderer(
                 device_id=device.udn,
                 name=device.friendly_name,
                 device_type=DeviceType.DLNA_RENDERER,
-                host=self._ruark_controller.ip or "",
+                host=self._dlna_controller.ip or "",
                 port=80,
                 extra={"location": device.location},
                 renderer_url=device.location,

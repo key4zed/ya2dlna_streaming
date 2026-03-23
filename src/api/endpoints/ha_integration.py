@@ -86,6 +86,8 @@ async def get_config():
 async def start_streaming(
     x_token: Optional[str] = None,
     cookie: Optional[str] = None,
+    ruark_pin: Optional[str] = None,
+    mute_yandex_station: Optional[bool] = None,
 ):
     """Запустить стриминг с активного источника на активный приёмник."""
     global streaming_active
@@ -101,6 +103,10 @@ async def start_streaming(
         settings.x_token = x_token
     if cookie is not None:
         settings.cookie = cookie
+    if ruark_pin is not None:
+        settings.ruark_pin = ruark_pin
+    if mute_yandex_station is not None:
+        settings.mute_yandex_station = mute_yandex_station
     # TODO: интегрировать с MainStreamManager для конкретных устройств
     # Пока используем существующий менеджер (который работает с предопределёнными устройствами)
     try:

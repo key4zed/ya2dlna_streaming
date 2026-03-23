@@ -1,9 +1,10 @@
 import asyncio
 from logging import getLogger
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
+from core.config.settings import settings
 from core.dependencies.main_di_container import MainDIContainer
 from core.device_manager import DeviceManager
 from core.models.devices import (
@@ -79,7 +80,12 @@ async def get_config():
 
 
 @router.post("/stream/start")
-async def start_streaming():
+async def start_streaming(
+    x_token: Optional[str] = Query(None, description="X‑Token для авторизации Яндекс.Станции (опционально)"),
+    cookie: Optional[str] = Query(None, description="Cookie для авторизации Яндекс.Станции (опционально)"),
+    ruark_pin: Optional[str] = Query(None, description="PIN‑код для управления Ruark R5 (опционально)"),
+    mute_yandex_station: Optional[bool] = Query(None, description="Отключать звук на Яндекс Станции во время трансляции (опционально)"),
+):
     """Запустить стриминг с активного источника на активный приёмник."""
     source = device_manager.get_active_source()
     target = device_manager.get_active_target()
@@ -88,6 +94,19 @@ async def start_streaming():
             status_code=400,
             detail="Не установлены активные источник и/или приёмник"
         )
+    # Обновляем настройки, если переданы токены
+    if x_token is not None:
+        settings.x_token = x_token
+        logger.info("✅ X‑Token обновлён (передан из интеграции)")
+    if cookie is not None:
+        settings.cookie = cookie
+        logger.info("✅ Cookie обновлён (передан из интеграции)")
+    if ruark_pin is not None:
+        settings.ruark_pin = ruark_pin
+        logger.info("✅ Ruark PIN обновлён (передан из интеграции)")
+    if mute_yandex_station is not None:
+        settings.mute_yandex_station = mute_yandex_station
+        logger.info(f"✅ Mute Yandex Station обновлён: {mute_yandex_station}")
     # TODO: интегрировать с MainStreamManager для конкретных устройств
     # Пока используем существующий менеджер (который работает с предопределёнными устройствами)
     asyncio.create_task(main_stream_manager.start())

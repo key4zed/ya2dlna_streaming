@@ -2,13 +2,14 @@ import asyncio
 from logging import getLogger
 from typing import Dict, List, Optional
 
+from core.config.settings import settings
 from core.models.devices import (
     DeviceInfo,
     DeviceType,
     DlnaRenderer,
     YandexStation,
 )
-from ruark_audio_system.ruark_r5_controller import RuarkR5Controller
+from dlna_stream_server.handlers.dlna_controller import DLNAController
 from yandex_station.mdns_device_finder import DeviceFinder
 
 logger = getLogger(__name__)
@@ -17,9 +18,10 @@ logger = getLogger(__name__)
 class DeviceManager:
     """Менеджер устройств для обнаружения и управления источниками и приёмниками."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._yandex_finder = DeviceFinder()
-        self._ruark_controller = RuarkR5Controller()
+        device_name = settings.dlna_device_name or "DLNA Renderer"
+        self._dlna_controller = DLNAController(device_name=device_name)
         self._devices: Dict[str, DeviceInfo] = {}
         self._active_source_id: Optional[str] = None
         self._active_target_id: Optional[str] = None
@@ -28,9 +30,10 @@ class DeviceManager:
         """Обнаружить Яндекс Станции в сети."""
         logger.info("Поиск Яндекс Станций...")
         self._yandex_finder.find_devices()
-        await asyncio.sleep(2)  # даём время на обнаружение
+        # Даём время на обнаружение (можно было бы использовать callback)
+        await asyncio.sleep(2)
         device = self._yandex_finder.device
-        stations = []
+        stations: List[YandexStation] = []
         if device:
             station = YandexStation(
                 device_id=device.get("device_id", "unknown"),
@@ -49,16 +52,16 @@ class DeviceManager:
     async def discover_dlna_renderers(self) -> List[DlnaRenderer]:
         """Обнаружить DLNA-рендереры в сети."""
         logger.info("Поиск DLNA-устройств...")
-        # Используем существующий RuarkR5Controller для поиска устройств
-        self._ruark_controller.refresh_device()
-        device = self._ruark_controller.device
-        renderers = []
+        # Используем универсальный DLNA‑контроллер для поиска устройств
+        self._dlna_controller.refresh_device()
+        device = self._dlna_controller.device
+        renderers: List[DlnaRenderer] = []
         if device:
             renderer = DlnaRenderer(
                 device_id=device.udn,
                 name=device.friendly_name,
                 device_type=DeviceType.DLNA_RENDERER,
-                host=self._ruark_controller.ip or "",
+                host=self._dlna_controller.ip or "",
                 port=80,
                 extra={"location": device.location},
                 renderer_url=device.location,
@@ -81,10 +84,15 @@ class DeviceManager:
         """Получить устройство по ID."""
         return self._devices.get(device_id)
 
-    def list_devices(self, device_type: Optional[DeviceType] = None) -> List[DeviceInfo]:
+    def list_devices(
+        self, device_type: Optional[DeviceType] = None
+    ) -> List[DeviceInfo]:
         """Список всех устройств, опционально отфильтрованный по типу."""
         if device_type:
-            return [d for d in self._devices.values() if d.device_type == device_type]
+            return [
+                d for d in self._devices.values()
+                if d.device_type == device_type
+            ]
         return list(self._devices.values())
 
     def set_active_source(self, device_id: str) -> bool:
@@ -94,7 +102,9 @@ class DeviceManager:
             return False
         device = self._devices[device_id]
         if device.device_type != DeviceType.YANDEX_STATION:
-            logger.warning(f"Устройство {device_id} не является Яндекс Станцией.")
+            logger.warning(
+                f"Устройство {device_id} не является Яндекс Станцией."
+            )
             return False
         self._active_source_id = device_id
         logger.info(f"Активный источник установлен: {device.name}")
@@ -107,7 +117,9 @@ class DeviceManager:
             return False
         device = self._devices[device_id]
         if device.device_type != DeviceType.DLNA_RENDERER:
-            logger.warning(f"Устройство {device_id} не является DLNA-рендерером.")
+            logger.warning(
+                f"Устройство {device_id} не является DLNA-рендерером."
+            )
             return False
         self._active_target_id = device_id
         logger.info(f"Активный приёмник установлен: {device.name}")
@@ -129,7 +141,7 @@ class DeviceManager:
                 return device
         return None
 
-    def clear_active(self):
+    def clear_active(self) -> None:
         """Сбросить активные устройства."""
         self._active_source_id = None
         self._active_target_id = None

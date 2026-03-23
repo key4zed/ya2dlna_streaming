@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request, Response
 
 from core.dependencies.main_di_container import MainDIContainer
 from dlna_stream_server.handlers.stream_handler import StreamHandler
-from dlna_stream_server.handlers.utils import ruark_r5_request_logger
+from dlna_stream_server.handlers.utils import dlna_request_logger
 
 logger = getLogger(__name__)
 
@@ -38,7 +38,7 @@ async def _handle_stream_task(
 
 @router.post("/set_stream")
 async def set_stream(yandex_url: str, radio: bool = False):
-    """Принимает URL трека и запускает потоковую передачу на Ruark."""
+    """Принимает URL трека и запускает потоковую передачу на DLNA‑устройство."""
     logger.info(f"📥 Запуск нового потока с {yandex_url}")
 
     # Генерируем уникальный ID для задачи
@@ -65,13 +65,13 @@ async def set_stream(yandex_url: str, radio: bool = False):
 @router.get("/live_stream.mp3")
 async def serve_stream(request: Request, radio: bool = False):
     """Раздает потоковый аудиофайл через HTTP."""
-    await ruark_r5_request_logger(request)
+    await dlna_request_logger(request)
     return await stream_handler.stream_audio(radio)
 
 
 @router.head("/live_stream.mp3")
 async def serve_head(radio: bool = False):
-    """Обрабатывает HEAD-запрос для Ruark R5 с корректными заголовками."""
+    """Обрабатывает HEAD-запрос для DLNA‑устройства с корректными заголовками."""
     headers = {
         "Content-Type": "audio/mpeg" if not radio else "audio/aac",
         "Accept-Ranges": "bytes",
@@ -82,7 +82,7 @@ async def serve_head(radio: bool = False):
 
 @router.post("/stop_stream")
 async def stop_stream():
-    """Останавливает потоковую передачу на Ruark."""
+    """Останавливает потоковую передачу на DLNA‑устройстве."""
     logger.info("🛑 Остановка потоковой передачи...")
     await stream_handler.stop_ffmpeg()
     return {"message": "Потоковая передача остановлена"}

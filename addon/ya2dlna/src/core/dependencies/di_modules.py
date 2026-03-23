@@ -3,10 +3,10 @@ from yandex_music import ClientAsync
 
 from core.config.settings import settings
 from core.device_manager import DeviceManager
+from dlna_stream_server.handlers.dlna_controller import DLNAController, RuarkR5Controller
 from dlna_stream_server.handlers.stream_handler import StreamHandler
 from main_stream_service.main_stream_manager import MainStreamManager
 from main_stream_service.yandex_music_api import YandexMusicAPI
-from ruark_audio_system.ruark_r5_controller import RuarkR5Controller
 from yandex_station.mdns_device_finder import DeviceFinder
 from yandex_station.protobuf_parser import Protobuf
 from yandex_station.station_controls import YandexStationControls
@@ -21,13 +21,13 @@ class MainStreamManagerModule(Module):
         self,
         station_ws_client: YandexStationClient,
         station_controls: YandexStationControls,
-        ruark_controls: RuarkR5Controller,
+        dlna_controls: DLNAController,
         yandex_music_api: YandexMusicAPI
     ) -> MainStreamManager:
         return MainStreamManager(
             station_ws_client=station_ws_client,
             station_controls=station_controls,
-            ruark_controls=ruark_controls,
+            dlna_controls=dlna_controls,
             yandex_music_api=yandex_music_api
         )
 
@@ -69,14 +69,21 @@ class YandexMusicAPIModule(Module):
         return YandexMusicAPI(client=client)
 
 
-class RuarkR5ControllerModule(Module):
-    """Класс для управления зависимостями RuarkR5Controller"""
+class DLNAControllerModule(Module):
+    """Класс для управления зависимостями DLNA‑контроллера (RuarkR5Controller или универсальный)"""
     @singleton
     @provider
-    def provide_ruark_r5_controller(
+    def provide_dlna_controller(
         self,
-    ) -> RuarkR5Controller:
-        return RuarkR5Controller()
+    ) -> DLNAController:
+        # Используем имя устройства из настроек, если указано, иначе "DLNA Renderer"
+        device_name = settings.dlna_device_name or "DLNA Renderer"
+        if settings.ruark_pin:
+            # Если указан PIN, используем RuarkR5Controller
+            return RuarkR5Controller(device_name=device_name)
+        else:
+            # Иначе используем универсальный DLNA‑контроллер
+            return DLNAController(device_name=device_name)
 
 
 class StreamHandlerModule(Module):
@@ -84,9 +91,9 @@ class StreamHandlerModule(Module):
     @singleton
     @provider
     def provide_stream_handler(
-        self, ruark_controls: RuarkR5Controller
+        self, dlna_controls: DLNAController
     ) -> StreamHandler:
-        return StreamHandler(ruark_controls)
+        return StreamHandler(dlna_controls)
 
 
 class ProtobufModule(Module):

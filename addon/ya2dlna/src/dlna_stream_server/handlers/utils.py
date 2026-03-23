@@ -35,7 +35,7 @@ if __name__ == "__main__":
     asyncio.run(get_latest_index_url())
 
 
-async def ruark_r5_request_logger(request: Request):
+async def dlna_request_logger(request: Request):
     logger.info(f"ℹ️ Заголовки запроса: {request.headers}")
     # Получаем тело запроса
     user_agent = request.headers.get("user-agent", "unknown")
