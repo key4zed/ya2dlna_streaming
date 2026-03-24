@@ -14,7 +14,7 @@ CONF_RUARK_PIN = "ruark_pin"
 CONF_MUTE_YANDEX_STATION = "mute_yandex_station"
 CONF_CONTROLLER_TYPE = "controller_type"
 
-DEFAULT_API_HOST = "localhost"
+DEFAULT_API_HOST = "hassio"
 DEFAULT_API_PORT = 8000
 DEFAULT_MUTE_YANDEX_STATION = True
 
