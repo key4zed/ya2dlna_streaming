@@ -1,3 +1,4 @@
+from typing import Optional
 from injector import Module, provider, singleton
 from yandex_music import ClientAsync
 
@@ -22,7 +23,7 @@ class MainStreamManagerModule(Module):
         station_ws_client: YandexStationClient,
         station_controls: YandexStationControls,
         dlna_controls: DLNAController,
-        yandex_music_api: YandexMusicAPI
+        yandex_music_api: Optional[YandexMusicAPI]
     ) -> MainStreamManager:
         return MainStreamManager(
             station_ws_client=station_ws_client,
@@ -64,7 +65,9 @@ class YandexMusicAPIModule(Module):
     """Класс для управления зависимостями Yandex Music API"""
     @singleton
     @provider
-    def provide_yandex_music_api(self) -> YandexMusicAPI:
+    def provide_yandex_music_api(self) -> Optional[YandexMusicAPI]:
+        if not settings.ya_music_token:
+            return None
         client = ClientAsync(settings.ya_music_token)
         return YandexMusicAPI(client=client)
 

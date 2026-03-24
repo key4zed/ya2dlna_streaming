@@ -29,7 +29,7 @@ class MainStreamManager:
         station_ws_client: YandexStationClient,
         station_controls: YandexStationControls,
         dlna_controls: DLNAController,
-        yandex_music_api: YandexMusicAPI,
+        yandex_music_api: Optional[YandexMusicAPI],
     ) -> None:
         self._ws_client = station_ws_client
         self._station_controls = station_controls
@@ -155,15 +155,28 @@ class MainStreamManager:
                             track_url = await self._station_controls.get_radio_url()
                             logger.info(f"🎵 URL радиостанции: {track_url}")
                         else:
+                            if self._yandex_music_api is None:
+                                logger.warning(
+                                    "⚠️ Трек Яндекс.Музыки не может быть обработан, "
+                                    "так как отсутствует токен Яндекс.Музыки. "
+                                    "Пропускаем трек."
+                                )
+                                # Пропускаем этот трек, обновляем last_track, чтобы не зацикливаться
+                                last_track = track
+                                continue
                             track_url = await self._yandex_music_api.get_file_info(
                                 track_id=track.id,
                                 quality=settings.stream_quality,
                             )
-                        await self._send_track_to_stream_server(
-                            track_url,
-                            radio=(track.type == "FmRadio"),
-                        )
-                        last_track = track
+                        if track_url is not None:
+                            await self._send_track_to_stream_server(
+                                track_url,
+                                radio=(track.type == "FmRadio"),
+                            )
+                            last_track = track
+                        else:
+                            logger.warning(f"⚠️ Не удалось получить URL для трека {track.id}, пропускаем")
+                            last_track = track
 
                     if speak_count > 0 and track.playing:
                         logger.info("🔁 Возвращаем громкость DLNA‑устройства")
@@ -182,7 +195,9 @@ class MainStreamManager:
                                 "⚠️ DLNA‑устройство так и не начало играть, "
                                 "перезапуск трека на стрим сервере"
                             )
-                            await self._send_track_to_stream_server(track_url)
+                            track_url = await self._get_track_url(track)
+                            if track_url is not None:
+                                await self._send_track_to_stream_server(track_url)
                             await self._station_controls.fade_out_alice_volume()
                             speak_count = 0
 
@@ -272,6 +287,22 @@ class MainStreamManager:
         except Exception as e:
             logger.error(f"❌ Непредвиденная ошибка при отправке трека: {e}")
             return None
+
+    async def _get_track_url(self, track: Track) -> Optional[str]:
+        """Возвращает URL для трека (радио или Яндекс.Музыки)."""
+        if track.type == "FmRadio":
+            return await self._station_controls.get_radio_url()
+        else:
+            if self._yandex_music_api is None:
+                logger.warning(
+                    "⚠️ Трек Яндекс.Музыки не может быть обработан, "
+                    "так как отсутствует токен Яндекс.Музыки."
+                )
+                return None
+            return await self._yandex_music_api.get_file_info(
+                track_id=track.id,
+                quality=settings.stream_quality,
+            )
 
     async def _stop_stream_on_stream_server(self) -> Optional[dict]:
         """Останавливает стрим на стрим-сервере."""

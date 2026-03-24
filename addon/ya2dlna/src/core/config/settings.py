@@ -29,8 +29,8 @@ class Settings(BaseSettings):
 
     # Yandex Music settings
     ya_music_token: str = Field(
-        ...,
-        description="Токен Яндекс.Музыки (обязательный). Получить можно через OAuth.",
+        "",
+        description="Токен Яндекс.Музыки. Получить можно через OAuth. Если не указан, стриминг через Яндекс.Музыку будет недоступен.",
     )
 
     # Yandex Station авторизация (альтернатива ya_music_token)

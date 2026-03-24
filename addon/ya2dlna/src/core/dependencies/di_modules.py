@@ -1,3 +1,6 @@
+from typing import Optional
+import asyncio
+import logging
 from injector import Module, provider, singleton
 from yandex_music import ClientAsync
 
@@ -11,6 +14,9 @@ from yandex_station.mdns_device_finder import DeviceFinder
 from yandex_station.protobuf_parser import Protobuf
 from yandex_station.station_controls import YandexStationControls
 from yandex_station.station_ws_control import YandexStationClient
+from core.authorization.yandex_tokens import get_music_token_via_x_token, AuthException
+
+logger = logging.getLogger(__name__)
 
 
 class MainStreamManagerModule(Module):
@@ -22,7 +28,7 @@ class MainStreamManagerModule(Module):
         station_ws_client: YandexStationClient,
         station_controls: YandexStationControls,
         dlna_controls: DLNAController,
-        yandex_music_api: YandexMusicAPI
+        yandex_music_api: Optional[YandexMusicAPI]
     ) -> MainStreamManager:
         return MainStreamManager(
             station_ws_client=station_ws_client,
@@ -64,8 +70,26 @@ class YandexMusicAPIModule(Module):
     """Класс для управления зависимостями Yandex Music API"""
     @singleton
     @provider
-    def provide_yandex_music_api(self) -> YandexMusicAPI:
-        client = ClientAsync(settings.ya_music_token)
+    def provide_yandex_music_api(self) -> Optional[YandexMusicAPI]:
+        ya_music_token = settings.ya_music_token
+        if not ya_music_token and settings.x_token and settings.x_token.strip():
+            # Попытаться получить ya_music_token через x_token
+            try:
+                # Создаём новый event loop, так как мы в синхронном контексте
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                ya_music_token = loop.run_until_complete(
+                    get_music_token_via_x_token(settings.x_token)
+                )
+                loop.close()
+                logger.info("✅ ya_music_token успешно получен через x_token")
+            except (AuthException, Exception) as e:
+                logger.error(f"❌ Не удалось получить ya_music_token через x_token: {e}")
+                ya_music_token = None
+        if not ya_music_token:
+            logger.warning("ya_music_token не указан, клиент Яндекс.Музыки отключён")
+            return None
+        client = ClientAsync(ya_music_token)
         return YandexMusicAPI(client=client)
 
 

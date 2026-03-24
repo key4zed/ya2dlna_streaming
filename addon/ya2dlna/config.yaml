@@ -19,20 +19,26 @@ map:
 logo: "logo.png"
 options:
   ya_music_token: ""
+  x_token: ""
+  cookie: ""
   ruark_pin: ""
   local_server_host: "0.0.0.0"
   local_server_port_dlna: 8001
   local_server_port_api: 8000
   stream_quality: "192"
   debug: false
+  mute_yandex_station: true
 schema:
   ya_music_token: str
+  x_token: str
+  cookie: str
   ruark_pin: str
   local_server_host: str
   local_server_port_dlna: int
   local_server_port_api: int
   stream_quality: str
   debug: bool
+  mute_yandex_station: bool
 
 build_from:
   aarch64: ghcr.io/home-assistant/aarch64-base:3.19

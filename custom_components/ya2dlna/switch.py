@@ -70,6 +70,17 @@ class Ya2DLNASwitch(SwitchEntity):
         """Return true if switch is on."""
         return self._state
 
+    async def _check_server_availability(self, session):
+        """Проверить, доступен ли сервер API."""
+        try:
+            async with session.get(
+                f"http://{self._api_host}:{self._api_port}/ha/stream/status",
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                return resp.status == 200
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            return False
+
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
         # Определяем device_id выбранных устройств через их атрибуты
@@ -79,16 +90,24 @@ class Ya2DLNASwitch(SwitchEntity):
         try:
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession(timeout=timeout) as session:
+                # Проверить доступность сервера перед выполнением операций
+                if not await self._check_server_availability(session):
+                    _LOGGER.error(
+                        f"Сервер Ya2DLNA недоступен по адресу {self._api_host}:{self._api_port}. "
+                        "Убедитесь, что аддон запущен и настроен правильно."
+                    )
+                    return
+
                 # Установить источник
-                resp = await session.post(
-                    f"http://{self._api_host}:{self._api_port}/ha/source/{self._source_entity}"
-                )
+                source_url = f"http://{self._api_host}:{self._api_port}/ha/source/{self._source_entity}"
+                _LOGGER.debug(f"Setting source via {source_url}")
+                resp = await session.post(source_url)
                 if resp.status not in (200, 201, 204):
                     _LOGGER.warning(f"Failed to set source: {resp.status}")
                 # Установить приёмник
-                resp = await session.post(
-                    f"http://{self._api_host}:{self._api_port}/ha/target/{self._target_entity}"
-                )
+                target_url = f"http://{self._api_host}:{self._api_port}/ha/target/{self._target_entity}"
+                _LOGGER.debug(f"Setting target via {target_url}")
+                resp = await session.post(target_url)
                 if resp.status not in (200, 201, 204):
                     _LOGGER.warning(f"Failed to set target: {resp.status}")
                 # Запустить стриминг с передачей x_token, cookie, ruark_pin и mute_yandex_station, если они есть
@@ -101,8 +120,10 @@ class Ya2DLNASwitch(SwitchEntity):
                     params["ruark_pin"] = self._ruark_pin
                 if self._mute_yandex_station is not None:
                     params["mute_yandex_station"] = str(self._mute_yandex_station).lower()
+                stream_url = f"http://{self._api_host}:{self._api_port}/ha/stream/start"
+                _LOGGER.debug(f"Starting stream via {stream_url} with params {params}")
                 resp = await session.post(
-                    f"http://{self._api_host}:{self._api_port}/ha/stream/start",
+                    stream_url,
                     params=params if params else None,
                 )
                 if resp.status not in (200, 201, 204):
@@ -114,16 +135,16 @@ class Ya2DLNASwitch(SwitchEntity):
         except asyncio.TimeoutError:
             _LOGGER.error("Timeout while starting streaming")
         except Exception as e:
-            _LOGGER.error(f"Failed to start streaming: {e}")
+            _LOGGER.error(f"Failed to start streaming to {self._api_host}:{self._api_port}: {e}")
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
         try:
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                resp = await session.post(
-                    f"http://{self._api_host}:{self._api_port}/ha/stream/stop"
-                )
+                stop_url = f"http://{self._api_host}:{self._api_port}/ha/stream/stop"
+                _LOGGER.debug(f"Stopping stream via {stop_url}")
+                resp = await session.post(stop_url)
                 if resp.status not in (200, 201, 204):
                     _LOGGER.warning(f"Failed to stop streaming: {resp.status}")
                 else:
@@ -133,16 +154,16 @@ class Ya2DLNASwitch(SwitchEntity):
         except asyncio.TimeoutError:
             _LOGGER.error("Timeout while stopping streaming")
         except Exception as e:
-            _LOGGER.error(f"Failed to stop streaming: {e}")
+            _LOGGER.error(f"Failed to stop streaming to {self._api_host}:{self._api_port}: {e}")
 
     async def async_update(self):
         """Update switch state by polling API."""
         try:
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(
-                    f"http://{self._api_host}:{self._api_port}/ha/stream/status"
-                ) as resp:
+                status_url = f"http://{self._api_host}:{self._api_port}/ha/stream/status"
+                _LOGGER.debug(f"Polling status via {status_url}")
+                async with session.get(status_url) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         self._state = data.get("status") == "streaming"
@@ -151,4 +172,4 @@ class Ya2DLNASwitch(SwitchEntity):
         except asyncio.TimeoutError:
             _LOGGER.debug("Timeout while updating switch state")
         except Exception as e:
-            _LOGGER.debug(f"Could not update switch state: {e}")
+            _LOGGER.debug(f"Could not update switch state from {self._api_host}:{self._api_port}: {e}")
