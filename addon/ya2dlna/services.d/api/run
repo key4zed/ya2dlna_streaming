@@ -1,5 +1,0 @@
-#!/bin/sh
-set -x
-echo "$(date) Starting API service" >> /tmp/debug.log
-cd /app
-exec python3 -m src.api.main 2>&1

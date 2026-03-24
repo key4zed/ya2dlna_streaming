@@ -17,6 +17,9 @@ WORKDIR /app
 # Установка Python-зависимостей
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
+# Установка PYTHONPATH для корректного импорта модулей core
+ENV PYTHONPATH=/app/src
+
 # Создание директории для конфигурации
 RUN mkdir -p /data
 
