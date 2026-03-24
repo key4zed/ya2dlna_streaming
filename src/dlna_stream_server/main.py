@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, '/app/src')
+
 from logging import getLogger
 
 import uvicorn
