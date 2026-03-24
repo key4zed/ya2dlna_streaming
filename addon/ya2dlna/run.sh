@@ -23,6 +23,12 @@ echo "PYTHONPATH=$PYTHONPATH"
 echo "sys.path:"
 python3 -c "import sys; print(sys.path)"
 
+# Проверка содержимого файлов
+echo "=== Checking /app/src/api/main.py ==="
+head -10 /app/src/api/main.py
+echo "=== Checking /app/src/dlna_stream_server/main.py ==="
+head -10 /app/src/dlna_stream_server/main.py
+
 # Запуск API сервиса в фоне
 cd /app
 PYTHONPATH=/app/src python3 -m src.api.main &
