@@ -25,4 +25,7 @@ COPY services.d/api /etc/services.d/api
 COPY services.d/dlna /etc/services.d/dlna
 RUN chmod +x /etc/services.d/api/run /etc/services.d/dlna/run
 
+# Явно указываем entrypoint s6-overlay, чтобы гарантировать, что он будет PID 1
+ENTRYPOINT ["/init"]
+
 # CMD не нужен, так как s6-overlay запустит службы
