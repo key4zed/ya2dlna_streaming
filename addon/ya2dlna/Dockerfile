@@ -14,6 +14,9 @@ RUN apk add --no-cache \
 COPY . /app
 WORKDIR /app
 
+# Удаление сервисных скриптов s6-overlay, чтобы предотвратить автоматический запуск
+RUN rm -rf /etc/services.d/* /etc/cont-init.d/* /etc/cont-finish.d/*
+
 # Установка Python-зависимостей
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 

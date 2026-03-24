@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+echo "=== Starting run.sh ==="
+
 # Создание конфигурационного файла .env из опций аддона
 cat > /app/.env <<EOF
 APP_YA_MUSIC_TOKEN=${ya_music_token}
@@ -29,6 +31,8 @@ API_PID=$!
 # Запуск DLNA сервера в фоне
 PYTHONPATH=/app/src python3 -m src.dlna_stream_server.main &
 DLNA_PID=$!
+
+echo "API PID: $API_PID, DLNA PID: $DLNA_PID"
 
 # Ожидание завершения любого из процессов
 wait $API_PID $DLNA_PID
