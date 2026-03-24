@@ -1,24 +1,16 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:latest
-FROM $BUILD_FROM
+# Используем легковесный образ Python без s6-overlay
+FROM python:3.11-alpine
 
-# Отключение s6-overlay-suexec для избежания ошибки "can only run as pid 1"
-ENV S6_OVERLAY_SUEXEC=0
-
-# Установка зависимостей
+# Установка системных зависимостей
 RUN apk add --no-cache \
-    python3 \
-    py3-pip \
     ffmpeg
 
 # Копирование исходного кода
 COPY . /app
 WORKDIR /app
 
-# Удаление сервисных скриптов s6-overlay, чтобы предотвратить автоматический запуск
-RUN rm -rf /etc/services.d/* /etc/cont-init.d/* /etc/cont-finish.d/*
-
 # Установка Python-зависимостей
-RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Установка PYTHONPATH для корректного импорта модулей core
 ENV PYTHONPATH=/app/src
@@ -29,5 +21,5 @@ RUN mkdir -p /data
 # Убедимся, что run.sh исполняемый
 RUN chmod +x /app/run.sh
 
-# Используем run.sh как entrypoint, чтобы избежать запуска s6-overlay-suexec
+# Используем run.sh как entrypoint
 ENTRYPOINT ["/app/run.sh"]
