@@ -15,13 +15,19 @@ APP_DEBUG=${debug}
 APP_MUTE_YANDEX_STATION=${mute_yandex_station}
 EOF
 
+# Установка PYTHONPATH для корректного импорта модулей core
+export PYTHONPATH=/app/src
+echo "PYTHONPATH=$PYTHONPATH"
+echo "sys.path:"
+python3 -c "import sys; print(sys.path)"
+
 # Запуск API сервиса в фоне
 cd /app
-python3 -m src.api.main &
+PYTHONPATH=/app/src python3 -m src.api.main &
 API_PID=$!
 
 # Запуск DLNA сервера в фоне
-python3 -m src.dlna_stream_server.main &
+PYTHONPATH=/app/src python3 -m src.dlna_stream_server.main &
 DLNA_PID=$!
 
 # Ожидание завершения любого из процессов
