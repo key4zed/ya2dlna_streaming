@@ -1,2 +1,5 @@
 #!/bin/sh
-exec python3 -m src.dlna_stream_server.main
+set -x
+echo "$(date) Starting DLNA service" >> /tmp/debug.log
+cd /app
+exec python3 -m src.dlna_stream_server.main 2>&1
