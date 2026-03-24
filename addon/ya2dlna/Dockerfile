@@ -20,12 +20,8 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 # Создание директории для конфигурации
 RUN mkdir -p /data
 
-# Копирование служб s6
-COPY services.d/api /etc/services.d/api
-COPY services.d/dlna /etc/services.d/dlna
-RUN chmod +x /etc/services.d/api/run /etc/services.d/dlna/run
+# Убедимся, что run.sh исполняемый
+RUN chmod +x /app/run.sh
 
-# Явно указываем entrypoint s6-overlay, чтобы гарантировать, что он будет PID 1
-ENTRYPOINT ["/init"]
-
-# CMD не нужен, так как s6-overlay запустит службы
+# Используем run.sh как entrypoint, чтобы избежать запуска s6-overlay-suexec
+ENTRYPOINT ["/app/run.sh"]
