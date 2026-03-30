@@ -1,2 +1,2 @@
-from core.logging.setup import setup_logging
+from src.core.logging.setup import setup_logging
 setup_logging()

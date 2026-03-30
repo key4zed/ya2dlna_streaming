@@ -23,8 +23,15 @@ RUN mkdir -p /data
 # Создание сервисных скриптов для s6-overlay
 RUN mkdir -p /etc/services.d/api /etc/services.d/dlna
 
-# Скрипт инициализации для создания .env файла из переменных окружения
+# Скрипт инициализации для создания .env файла из переменных окружения с значениями по умолчанию
 RUN echo '#!/bin/sh' > /etc/cont-init.d/01-setup-env && \
+    echo '# Установка значений по умолчанию для переменных, если они пусты' >> /etc/cont-init.d/01-setup-env && \
+    echo ': ${local_server_host:=0.0.0.0}' >> /etc/cont-init.d/01-setup-env && \
+    echo ': ${local_server_port_dlna:=8001}' >> /etc/cont-init.d/01-setup-env && \
+    echo ': ${local_server_port_api:=8000}' >> /etc/cont-init.d/01-setup-env && \
+    echo ': ${stream_quality:=192}' >> /etc/cont-init.d/01-setup-env && \
+    echo ': ${debug:=false}' >> /etc/cont-init.d/01-setup-env && \
+    echo ': ${mute_yandex_station:=true}' >> /etc/cont-init.d/01-setup-env && \
     echo 'cat > /app/.env <<EOF' >> /etc/cont-init.d/01-setup-env && \
     echo 'APP_YA_MUSIC_TOKEN=${ya_music_token}' >> /etc/cont-init.d/01-setup-env && \
     echo 'APP_X_TOKEN=${x_token}' >> /etc/cont-init.d/01-setup-env && \

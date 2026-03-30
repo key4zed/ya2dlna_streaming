@@ -3,6 +3,14 @@ set -e
 
 echo "=== Starting run.sh ==="
 
+# Установка значений по умолчанию для переменных, если они пусты
+: ${local_server_host:=0.0.0.0}
+: ${local_server_port_dlna:=8001}
+: ${local_server_port_api:=8000}
+: ${stream_quality:=192}
+: ${debug:=false}
+: ${mute_yandex_station:=true}
+
 # Создание конфигурационного файла .env из опций аддона
 cat > /app/.env <<EOF
 APP_YA_MUSIC_TOKEN=${ya_music_token}
