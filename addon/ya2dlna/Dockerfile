@@ -23,12 +23,11 @@ RUN mkdir -p /data
 # Создание сервисных скриптов для s6-overlay
 RUN mkdir -p /etc/services.d/api /etc/services.d/dlna
 
-# Создание директории для скриптов инициализации s6-overlay
-RUN mkdir -p /etc/cont-init.d
-
-# Скрипт инициализации для создания .env файла из переменных окружения с значениями по умолчанию
+# Создание директории для скриптов инициализации s6-overlay и скрипта инициализации
+# для создания .env файла из переменных окружения с значениями по умолчанию
 # Записываем только непустые значения
-RUN echo '#!/bin/sh' > /etc/cont-init.d/01-setup-env && \
+RUN mkdir -p /etc/cont-init.d && \
+    echo '#!/bin/sh' > /etc/cont-init.d/01-setup-env && \
     echo '# Установка значений по умолчанию для переменных, если они пусты' >> /etc/cont-init.d/01-setup-env && \
     echo ': ${local_server_host:=0.0.0.0}' >> /etc/cont-init.d/01-setup-env && \
     echo ': ${local_server_port_dlna:=8001}' >> /etc/cont-init.d/01-setup-env && \
