@@ -12,18 +12,19 @@ echo "=== Starting run.sh ==="
 : ${mute_yandex_station:=true}
 
 # Создание конфигурационного файла .env из опций аддона
-cat > /app/.env <<EOF
-APP_YA_MUSIC_TOKEN=${ya_music_token}
-APP_X_TOKEN=${x_token}
-APP_COOKIE=${cookie}
-APP_RUARK_PIN=${ruark_pin}
-APP_LOCAL_SERVER_HOST=${local_server_host}
-APP_LOCAL_SERVER_PORT_DLNA=${local_server_port_dlna}
-APP_LOCAL_SERVER_PORT_API=${local_server_port_api}
-APP_STREAM_QUALITY=${stream_quality}
-APP_DEBUG=${debug}
-APP_MUTE_YANDEX_STATION=${mute_yandex_station}
-EOF
+# Записываем только непустые значения
+{
+  [ -n "${ya_music_token}" ] && echo "APP_YA_MUSIC_TOKEN=${ya_music_token}"
+  [ -n "${x_token}" ] && echo "APP_X_TOKEN=${x_token}"
+  [ -n "${cookie}" ] && echo "APP_COOKIE=${cookie}"
+  [ -n "${ruark_pin}" ] && echo "APP_RUARK_PIN=${ruark_pin}"
+  [ -n "${local_server_host}" ] && echo "APP_LOCAL_SERVER_HOST=${local_server_host}"
+  [ -n "${local_server_port_dlna}" ] && echo "APP_LOCAL_SERVER_PORT_DLNA=${local_server_port_dlna}"
+  [ -n "${local_server_port_api}" ] && echo "APP_LOCAL_SERVER_PORT_API=${local_server_port_api}"
+  [ -n "${stream_quality}" ] && echo "APP_STREAM_QUALITY=${stream_quality}"
+  [ -n "${debug}" ] && echo "APP_DEBUG=${debug}"
+  [ -n "${mute_yandex_station}" ] && echo "APP_MUTE_YANDEX_STATION=${mute_yandex_station}"
+} > /app/.env
 
 # Установка PYTHONPATH для корректного импорта модулей core
 export PYTHONPATH=/app/src
