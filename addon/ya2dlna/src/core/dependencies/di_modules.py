@@ -19,6 +19,30 @@ from core.authorization.yandex_tokens import get_music_token_via_x_token, AuthEx
 logger = logging.getLogger(__name__)
 
 
+class NullYandexMusicAPI(YandexMusicAPI):
+    """Заглушка YandexMusicAPI, которая ничего не делает (используется когда токен отсутствует)"""
+    def __init__(self):
+        # Создаём клиент с фейковым токеном, но он никогда не будет использоваться
+        super().__init__(ClientAsync("fake_token"))
+        self._is_null = True
+
+    async def get_track_url(self, track_id: int, quality: Optional[str] = None, codecs: Optional[str] = None) -> Optional[str]:
+        logger.debug("NullYandexMusicAPI: запрос к треку игнорируется")
+        return None
+
+    async def search_track(self, query: str) -> Optional[int]:
+        logger.debug("NullYandexMusicAPI: поиск трека игнорируется")
+        return None
+
+    async def get_album_tracks(self, album_id: int) -> Optional[list[int]]:
+        logger.debug("NullYandexMusicAPI: получение треков альбома игнорируется")
+        return None
+
+    async def get_playlist_tracks(self, user_id: str, playlist_id: str) -> Optional[list[int]]:
+        logger.debug("NullYandexMusicAPI: получение треков плейлиста игнорируется")
+        return None
+
+
 class MainStreamManagerModule(Module):
     """Класс для управления зависимостями MainStreamManager"""
     @singleton
@@ -70,7 +94,7 @@ class YandexMusicAPIModule(Module):
     """Класс для управления зависимостями Yandex Music API"""
     @singleton
     @provider
-    def provide_yandex_music_api(self) -> Optional[YandexMusicAPI]:
+    def provide_yandex_music_api(self) -> YandexMusicAPI:
         ya_music_token = settings.ya_music_token
         if not ya_music_token and settings.x_token and settings.x_token.strip():
             # Попытаться получить ya_music_token через x_token
@@ -87,8 +111,8 @@ class YandexMusicAPIModule(Module):
                 logger.error(f"❌ Не удалось получить ya_music_token через x_token: {e}")
                 ya_music_token = None
         if not ya_music_token:
-            logger.warning("ya_music_token не указан, клиент Яндекс.Музыки отключён")
-            return None
+            logger.warning("ya_music_token не указан, используется NullYandexMusicAPI")
+            return NullYandexMusicAPI()
         client = ClientAsync(ya_music_token)
         return YandexMusicAPI(client=client)
 
