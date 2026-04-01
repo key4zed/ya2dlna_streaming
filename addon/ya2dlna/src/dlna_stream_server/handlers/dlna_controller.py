@@ -161,6 +161,9 @@ class DLNAController:
 
     async def stop(self) -> None:
         """Остановка воспроизведения."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, пропускаем остановку")
+            return
         playing = await self.is_playing()
         if playing:
             await asyncio.to_thread(self.av_transport.Stop, InstanceID=0)
@@ -200,6 +203,9 @@ class DLNAController:
 
     async def get_transport_info(self) -> Dict[str, Any]:
         """Получение информации о состоянии транспорта."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, возвращаем пустой словарь")
+            return {}
         return await asyncio.to_thread(
             self.av_transport.GetTransportInfo,
             InstanceID=0
@@ -214,6 +220,9 @@ class DLNAController:
 
     async def is_playing(self, timeout: float = 5.0) -> bool:
         """Проверка, воспроизводится ли что‑либо, с защитой по таймауту."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, считаем что не воспроизводится")
+            return False
         try:
             state = await asyncio.wait_for(
                 self.get_transport_info(), timeout=timeout
@@ -238,6 +247,9 @@ class DLNAController:
     #   RenderingControl
     async def get_volume(self) -> int:
         """Получение текущего уровня громкости."""
+        if self.rendering_control is None:
+            logger.warning("❌ rendering_control не инициализирован, возвращаем 0")
+            return 0
         result = await asyncio.to_thread(
             self.rendering_control.GetVolume,
             InstanceID=0,
@@ -247,6 +259,9 @@ class DLNAController:
 
     async def set_volume(self, volume: int) -> None:
         """Установка громкости (0‑100)."""
+        if self.rendering_control is None:
+            logger.warning("❌ rendering_control не инициализирован, пропускаем установку громкости")
+            return
         await asyncio.to_thread(
             self.rendering_control.SetVolume,
             InstanceID=0,

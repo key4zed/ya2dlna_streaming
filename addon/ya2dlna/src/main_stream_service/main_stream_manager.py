@@ -61,13 +61,42 @@ class MainStreamManager:
         """Остановка всех стриминговых процессов."""
         logger.info("🛑 Остановка стриминга...")
         self._stream_state_running = False
-        await self._dlna_controls.stop()
-        await self._stop_stream_on_stream_server()
-        await self._dlna_controls.set_volume(self._dlna_volume)
-        await self._dlna_controls.turn_power_off()
-        await self._station_controls.unmute()
+        
+        # Остановка DLNA-воспроизведения с обработкой ошибок
+        try:
+            await self._dlna_controls.stop()
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при остановке DLNA: {e}")
+        
+        # Остановка стрима на стрим-сервере
+        try:
+            await self._stop_stream_on_stream_server()
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при остановке стрим-сервера: {e}")
+        
+        # Восстановление громкости DLNA
+        try:
+            await self._dlna_controls.set_volume(self._dlna_volume)
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при установке громкости DLNA: {e}")
+        
+        # Выключение питания DLNA (если поддерживается)
+        try:
+            await self._dlna_controls.turn_power_off()
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при выключении питания DLNA: {e}")
+        
+        # Включение звука Яндекс Станции
+        try:
+            await self._station_controls.unmute()
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при включении звука станции: {e}")
+        
         # Остановка WebSocket-клиента
-        await self._station_controls.stop_ws_client()
+        try:
+            await self._station_controls.stop_ws_client()
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при остановке WebSocket-клиента: {e}")
 
         # Отмена всех активных задач
         for task in self._tasks:

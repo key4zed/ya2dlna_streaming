@@ -84,35 +84,101 @@ class DeviceManager:
         """Получить устройство по ID."""
         return self._devices.get(device_id)
 
+    def find_device_by_entity_id(self, entity_id: str) -> Optional[DeviceInfo]:
+        """Найти устройство по entity_id из Home Assistant."""
+        # entity_id имеет формат "domain.object_id", например "media_player.yandex_station_ultraviolet"
+        # или "media_player.am8_renderer"
+        # Попробуем извлечь object_id (часть после последней точки)
+        if "." not in entity_id:
+            return None
+        object_id = entity_id.split(".")[-1]
+        logger.debug(f"Поиск устройства по entity_id {entity_id}, object_id={object_id}")
+        
+        # 1. Прямое совпадение device_id == entity_id (на случай, если передали device_id)
+        if entity_id in self._devices:
+            logger.debug(f"Найдено прямое совпадение device_id: {entity_id}")
+            return self._devices[entity_id]
+        
+        # 2. Поиск по имени (name) - для Яндекс Станций name = "Yandex Station {platform}"
+        #    object_id может содержать platform (например, "ultraviolet")
+        for device in self._devices.values():
+            device_name_normalized = device.name.lower().replace(" ", "_")
+            if device_name_normalized == object_id:
+                logger.debug(f"Найдено по имени: {device.name}")
+                return device
+            # Проверим, содержит ли object_id часть имени
+            if object_id in device_name_normalized:
+                logger.debug(f"Найдено по части имени: {device.name}")
+                return device
+        
+        # 3. Для Яндекс Станций: object_id может быть platform (например, "yandexstation")
+        for device in self._devices.values():
+            if device.device_type == DeviceType.YANDEX_STATION:
+                platform = None
+                if isinstance(device, YandexStation):
+                    platform = device.platform
+                elif 'platform' in device.extra:
+                    platform = device.extra['platform']
+                if platform and object_id == platform.lower():
+                    logger.debug(f"Найдено по platform: {platform}")
+                    return device
+        
+        # 4. Для DLNA: object_id может быть friendly_name (например, "AM8 Renderer")
+        for device in self._devices.values():
+            if device.device_type == DeviceType.DLNA_RENDERER:
+                friendly_name = None
+                if isinstance(device, DlnaRenderer):
+                    friendly_name = device.friendly_name
+                elif 'friendly_name' in device.extra:
+                    friendly_name = device.extra['friendly_name']
+                if friendly_name and object_id == friendly_name.lower().replace(" ", "_"):
+                    logger.debug(f"Найдено по friendly_name: {friendly_name}")
+                    return device
+        
+        logger.warning(f"Устройство с entity_id {entity_id} не найдено. Доступные устройства: {list(self._devices.keys())}")
+        return None
+
     def list_devices(self, device_type: Optional[DeviceType] = None) -> List[DeviceInfo]:
         """Список всех устройств, опционально отфильтрованный по типу."""
         if device_type:
             return [d for d in self._devices.values() if d.device_type == device_type]
         return list(self._devices.values())
 
-    def set_active_source(self, device_id: str) -> bool:
+    def set_active_source(self, device_or_entity_id: str) -> bool:
         """Установить активный источник звука."""
-        if device_id not in self._devices:
-            logger.warning(f"Устройство {device_id} не найдено.")
-            return False
-        device = self._devices[device_id]
+        # Сначала попробуем найти устройство по device_id
+        device = self._devices.get(device_or_entity_id)
+        if not device:
+            # Если не найдено, попробуем найти по entity_id
+            device = self.find_device_by_entity_id(device_or_entity_id)
+            if not device:
+                logger.warning(f"Устройство {device_or_entity_id} не найдено.")
+                return False
+        
         if device.device_type != DeviceType.YANDEX_STATION:
-            logger.warning(f"Устройство {device_id} не является Яндекс Станцией.")
+            logger.warning(f"Устройство {device_or_entity_id} не является Яндекс Станцией.")
             return False
-        self._active_source_id = device_id
+        
+        self._active_source_id = device.device_id
         logger.info(f"Активный источник установлен: {device.name}")
         return True
 
-    def set_active_target(self, device_id: str) -> bool:
+    def set_active_target(self, device_or_entity_id: str) -> bool:
         """Установить активный приёмник звука."""
-        if device_id not in self._devices:
-            logger.warning(f"Устройство {device_id} не найдено.")
-            return False
-        device = self._devices[device_id]
+        # Сначала попробуем найти устройство по device_id
+        device = self._devices.get(device_or_entity_id)
+        if not device:
+            # Если не найдено, попробуем найти по entity_id
+            device = self.find_device_by_entity_id(device_or_entity_id)
+            if not device:
+                logger.warning(f"Устройство {device_or_entity_id} не найдено.")
+                return False
+        
         if device.device_type != DeviceType.DLNA_RENDERER:
-            logger.warning(f"Устройство {device_id} не является DLNA-рендерером.")
+            logger.warning(f"Устройство {device_or_entity_id} не является DLNA-рендерером.")
             return False
-        self._active_target_id = device_id
+        
+        self._active_target_id = device.device_id
         logger.info(f"Активный приёмник установлен: {device.name}")
         return True
 
