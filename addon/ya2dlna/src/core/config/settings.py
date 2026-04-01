@@ -1,8 +1,8 @@
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import Field
+from pydantic import Field, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -107,5 +107,58 @@ class Settings(BaseSettings):
         ge=0,
         description="Время жизни кэша треков (в секундах).",
     )
+
+    @field_validator("local_server_port_dlna", mode="before")
+    @classmethod
+    def validate_local_server_port_dlna(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.strip() == "":
+            return 8001  # значение по умолчанию
+        return v
+
+    @field_validator("local_server_port_api", mode="before")
+    @classmethod
+    def validate_local_server_port_api(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.strip() == "":
+            return 8000  # значение по умолчанию
+        return v
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def validate_debug(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.strip() == "":
+            return False  # значение по умолчанию
+        return v
+
+    @field_validator("stream_quality", mode="before")
+    @classmethod
+    def validate_stream_quality(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.strip() == "":
+            return "192"  # значение по умолчанию
+        return v
+
+    @field_validator("mute_yandex_station", mode="before")
+    @classmethod
+    def validate_mute_yandex_station(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.strip() == "":
+            return True  # значение по умолчанию
+        return v
+
+    @field_validator("stream_is_local_file", mode="before")
+    @classmethod
+    def validate_stream_is_local_file(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.strip() == "":
+            return False  # значение по умолчанию
+        return v
+
+    @field_validator("yandex_music_timeout", "yandex_music_cache_ttl", mode="before")
+    @classmethod
+    def validate_int_fields(cls, v: Any, info: ValidationInfo) -> Any:
+        if isinstance(v, str) and v.strip() == "":
+            # Для этих полей тоже есть значения по умолчанию
+            if info.field_name == "yandex_music_timeout":
+                return 15
+            elif info.field_name == "yandex_music_cache_ttl":
+                return 300
+        return v
 
 settings = Settings()
