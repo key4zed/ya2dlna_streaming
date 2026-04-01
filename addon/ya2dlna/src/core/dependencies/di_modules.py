@@ -134,3 +134,8 @@ class DeviceManagerModule(Module):
     @provider
     def provide_device_manager(self) -> DeviceManager:
         return DeviceManager()
+
+
+class RuarkR5ControllerModule(DLNAControllerModule):
+    """Алиас для обратной совместимости (старое название модуля)"""
+    pass
