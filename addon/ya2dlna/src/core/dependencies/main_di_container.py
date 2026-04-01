@@ -2,8 +2,8 @@ from injector import Injector, Module
 
 from core.dependencies.di_modules import (DeviceFinderModule,
                                           DeviceManagerModule,
+                                          DLNAControllerModule,
                                           MainStreamManagerModule,
-                                          RuarkR5ControllerModule,
                                           StreamHandlerModule,
                                           YandexMusicAPIModule,
                                           YandexStationClientModule,
@@ -19,7 +19,7 @@ class MainDIContainer:
     BASE_MODULES = [
         YandexStationClientModule,
         YandexStationControlsModule,
-        RuarkR5ControllerModule,
+        DLNAControllerModule,
         YandexMusicAPIModule,
         MainStreamManagerModule,
         StreamHandlerModule,
