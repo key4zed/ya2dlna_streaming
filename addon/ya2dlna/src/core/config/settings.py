@@ -1,8 +1,8 @@
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import Field
+from pydantic import Field, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -107,6 +107,34 @@ class Settings(BaseSettings):
         ge=0,
         description="Время жизни кэша треков (в секундах).",
     )
+
+    @field_validator(
+        "local_server_port_dlna",
+        "local_server_port_api",
+        "stream_quality",
+        mode="before",
+    )
+    @classmethod
+    def empty_string_to_default(cls, v: Any, info: ValidationInfo) -> Any:
+        """Преобразует пустые строки в ..., чтобы использовались значения по умолчанию."""
+        if v == "":
+            return ...
+        return v
+
+    @field_validator("debug", "mute_yandex_station", mode="before")
+    @classmethod
+    def empty_bool_to_default(cls, v: Any, info: ValidationInfo) -> Any:
+        """Обрабатывает пустые строки для булевых полей."""
+        if v == "":
+            return ...
+        if isinstance(v, str):
+            v_lower = v.lower()
+            if v_lower in ("true", "1", "yes", "on"):
+                return True
+            elif v_lower in ("false", "0", "no", "off"):
+                return False
+        # Если v уже bool или другой тип, оставляем как есть
+        return v
 
 
 settings = Settings()
