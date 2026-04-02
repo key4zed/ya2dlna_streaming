@@ -301,13 +301,22 @@ class DLNAController:
         if self.rendering_control is None:
             logger.warning("❌ rendering_control не инициализирован, пропускаем установку громкости")
             return
-        await asyncio.to_thread(
-            self.rendering_control.SetVolume,
-            InstanceID=0,
-            Channel="Master",
-            DesiredVolume=volume
-        )
-        logger.info(f"🔊 Громкость установлена на {volume}")
+        # Проверяем, поддерживает ли устройство SetVolume
+        if not hasattr(self.rendering_control, "SetVolume"):
+            logger.warning("❌ Устройство не поддерживает SetVolume, пропускаем установку громкости")
+            return
+        try:
+            await asyncio.to_thread(
+                self.rendering_control.SetVolume,
+                InstanceID=0,
+                Channel="Master",
+                DesiredVolume=volume
+            )
+            logger.info(f"🔊 Громкость установлена на {volume}")
+        except AttributeError as e:
+            logger.warning(f"❌ Ошибка AttributeError при установке громкости: {e}")
+        except Exception as e:
+            logger.warning(f"❌ Неожиданная ошибка при установке громкости: {e}")
 
     async def get_mute(self) -> bool:
         """Получение состояния mute."""

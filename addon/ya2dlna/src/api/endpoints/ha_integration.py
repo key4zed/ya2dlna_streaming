@@ -61,6 +61,8 @@ async def set_source(device_id: str, request: Request):
     """Установить активный источник звука (Яндекс Станция)."""
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Установка источника {device_id} (HA {ha_version})")
+    # Принудительно обновляем список устройств перед поиском
+    await device_manager.discover_all()
     success = device_manager.set_active_source(device_id)
     if not success:
         logger.warning(f"Устройство {device_id} не найдено или не является Яндекс Станцией (HA {ha_version})")
@@ -74,6 +76,8 @@ async def set_target(device_id: str, request: Request):
     """Установить активный приёмник звука (DLNA-устройство)."""
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Установка приёмника {device_id} (HA {ha_version})")
+    # Принудительно обновляем список устройств перед поиском
+    await device_manager.discover_all()
     success = device_manager.set_active_target(device_id)
     if not success:
         logger.warning(f"Устройство {device_id} не найдено или не является DLNA-рендерером (HA {ha_version})")

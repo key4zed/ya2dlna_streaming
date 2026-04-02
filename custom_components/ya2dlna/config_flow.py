@@ -259,7 +259,7 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry):
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self._ya2dlna_config_entry = config_entry
         super().__init__()
 
     async def async_step_init(self, user_input=None):
@@ -279,8 +279,8 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
 
         # Получим текущие значения из data и options
         # В Home Assistant options переопределяют data, поэтому используем get с объединением
-        config_data = self.config_entry.data
-        config_options = self.config_entry.options
+        config_data = self._ya2dlna_config_entry.data
+        config_options = self._ya2dlna_config_entry.options
         
         def get_value(key, default=None):
             # Сначала options, потом data, потом default
