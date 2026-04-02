@@ -16,12 +16,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = entry.data
 
+    # Log Home Assistant version for debugging
+    ha_version = hass.config.version
+    _LOGGER.info(
+        f"Setting up Ya2DLNA integration (Home Assistant {ha_version})"
+    )
+
     # Forward setup to switch platform
     # Try new method first, fallback to old for compatibility
     try:
         await hass.config_entries.async_forward_entry_setups(entry, ["switch"])
     except AttributeError:
         # Fallback for older Home Assistant versions
+        _LOGGER.warning(
+            f"Home Assistant {ha_version} does not support async_forward_entry_setups, using old method"
+        )
         await hass.config_entries.async_forward_entry_setup(entry, "switch")
     return True
 

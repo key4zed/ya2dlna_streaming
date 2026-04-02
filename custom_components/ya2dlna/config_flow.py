@@ -46,6 +46,8 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step: choose authentication method."""
+        ha_version = self.hass.config.version
+        _LOGGER.info(f"Config flow step 'user' (Home Assistant {ha_version})")
         errors = {}
         if user_input is not None:
             self.auth_method = user_input[CONF_AUTH_METHOD]
@@ -57,6 +59,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_token()
             else:
                 errors["base"] = "unknown_auth_method"
+                _LOGGER.error(f"Unknown auth method selected (Home Assistant {ha_version})")
 
         # Определить доступные методы аутентификации
         auth_methods = [
@@ -78,6 +81,8 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_yandex_station(self, user_input=None):
         """Handle selection of Yandex Station integration."""
+        ha_version = self.hass.config.version
+        _LOGGER.info(f"Config flow step 'yandex_station' (Home Assistant {ha_version})")
         errors = {}
         if user_input is not None:
             # user_input содержит выбранную интеграцию (например, entry_id)
@@ -89,10 +94,12 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 # Проверим, что хотя бы что-то есть
                 if not self.x_token and not self.cookie:
                     errors["base"] = "no_auth_data"
+                    _LOGGER.error(f"No auth data in selected Yandex Station entry (Home Assistant {ha_version})")
                 else:
                     return await self.async_step_config()
             else:
                 errors["base"] = "entry_not_found"
+                _LOGGER.error(f"Selected Yandex Station entry not found (Home Assistant {ha_version})")
 
         # Соберём все записи Yandex Station
         yandex_entries = []
@@ -120,6 +127,8 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_cookies(self, user_input=None):
         """Handle input of cookies."""
+        ha_version = self.hass.config.version
+        _LOGGER.info(f"Config flow step 'cookies' (Home Assistant {ha_version})")
         errors = {}
         description_placeholders = {}
         if self.auth_method == AUTH_METHOD_YANDEX_STATION:
@@ -130,6 +139,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             cookie = user_input[CONF_COOKIE]
             if not cookie.strip():
                 errors["base"] = "invalid_cookie"
+                _LOGGER.error(f"Invalid cookie provided (Home Assistant {ha_version})")
             else:
                 self.cookie = cookie
                 self.x_token = ""
@@ -148,11 +158,14 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_token(self, user_input=None):
         """Handle input of x-token."""
+        ha_version = self.hass.config.version
+        _LOGGER.info(f"Config flow step 'token' (Home Assistant {ha_version})")
         errors = {}
         if user_input is not None:
             x_token = user_input[CONF_X_TOKEN]
             if not x_token.strip():
                 errors["base"] = "invalid_token"
+                _LOGGER.error(f"Invalid x-token provided (Home Assistant {ha_version})")
             else:
                 self.x_token = x_token
                 self.cookie = ""
@@ -171,6 +184,8 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_config(self, user_input=None):
         """Handle configuration of devices and API."""
+        ha_version = self.hass.config.version
+        _LOGGER.info(f"Config flow step 'config' (Home Assistant {ha_version})")
         errors = {}
         if user_input is not None:
             # Сохраняем данные
@@ -193,6 +208,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_RUARK_PIN: self.ruark_pin,
                 CONF_MUTE_YANDEX_STATION: self.mute_yandex_station,
             }
+            _LOGGER.info(f"Creating config entry for Ya2DLNA (Home Assistant {ha_version})")
             return self.async_create_entry(title="Ya2DLNA Streaming", data=data)
 
         # Селектор для источника (Яндекс Станции)
@@ -247,36 +263,65 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
+        ha_version = self.hass.config.version
+        _LOGGER.info(f"Options flow step 'init' (Home Assistant {ha_version})")
+        errors = {}
         if user_input is not None:
+            # Проверим, что выбранные сущности существуют
+            source_entity = user_input.get(CONF_SOURCE_ENTITY)
+            target_entity = user_input.get(CONF_TARGET_ENTITY)
+            
+            # Проверка доступности сущностей (опционально)
+            # Пока просто сохраняем
+            _LOGGER.info(f"Updating options for Ya2DLNA (Home Assistant {ha_version})")
             return self.async_create_entry(title="", data=user_input)
 
+        # Получим текущие значения из data и options
+        # В Home Assistant options переопределяют data, поэтому используем get с объединением
+        config_data = self.config_entry.data
+        config_options = self.config_entry.options
+        
+        def get_value(key, default=None):
+            # Сначала options, потом data, потом default
+            return config_options.get(key, config_data.get(key, default))
+        
+        current_source = get_value(CONF_SOURCE_ENTITY, "")
+        current_target = get_value(CONF_TARGET_ENTITY, "")
+        current_api_host = get_value(CONF_API_HOST, DEFAULT_API_HOST)
+        current_api_port = get_value(CONF_API_PORT, DEFAULT_API_PORT)
+        current_ruark_pin = get_value(CONF_RUARK_PIN, "")
+        current_mute_yandex_station = get_value(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
+
+        # Селектор для источника (Яндекс Станции)
+        source_selector = selector.EntitySelector(
+            selector.EntitySelectorConfig(
+                filter=[
+                    {"domain": "media_player", "integration": "yandex_station"},
+                    {"domain": "media_player", "integration": "yandex_station_intents"},
+                ],
+                multiple=False,
+            )
+        )
+        # Селектор для цели (DLNA-рендереры)
+        target_selector = selector.EntitySelector(
+            selector.EntitySelectorConfig(
+                filter=[
+                    {"domain": "media_player", "integration": "dlna_dmr"},
+                ],
+                multiple=False,
+            )
+        )
+
         data_schema = vol.Schema({
-            vol.Optional(
-                CONF_API_HOST,
-                default=self.config_entry.options.get(CONF_API_HOST, DEFAULT_API_HOST),
-            ): str,
-            vol.Optional(
-                CONF_API_PORT,
-                default=self.config_entry.options.get(CONF_API_PORT, DEFAULT_API_PORT),
-            ): int,
-            vol.Optional(
-                CONF_X_TOKEN,
-                default=self.config_entry.options.get(CONF_X_TOKEN, ""),
-            ): str,
-            vol.Optional(
-                CONF_COOKIE,
-                default=self.config_entry.options.get(CONF_COOKIE, ""),
-            ): str,
-            vol.Optional(
-                CONF_RUARK_PIN,
-                default=self.config_entry.options.get(CONF_RUARK_PIN, ""),
-            ): str,
-            vol.Optional(
-                CONF_MUTE_YANDEX_STATION,
-                default=self.config_entry.options.get(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION),
-            ): bool,
+            vol.Required(CONF_SOURCE_ENTITY, default=current_source): source_selector,
+            vol.Required(CONF_TARGET_ENTITY, default=current_target): target_selector,
+            vol.Optional(CONF_API_HOST, default=current_api_host): str,
+            vol.Optional(CONF_API_PORT, default=current_api_port): int,
+            vol.Optional(CONF_RUARK_PIN, default=current_ruark_pin): str,
+            vol.Optional(CONF_MUTE_YANDEX_STATION, default=current_mute_yandex_station): bool,
         })
         return self.async_show_form(
             step_id="init",
             data_schema=data_schema,
+            errors=errors,
         )
