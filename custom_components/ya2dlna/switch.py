@@ -81,8 +81,44 @@ class Ya2DLNASwitch(SwitchEntity):
         except (aiohttp.ClientError, asyncio.TimeoutError):
             return False
 
+    async def _check_device_availability(self, entity_id: str) -> bool:
+        """Проверить доступность устройства в Home Assistant."""
+        try:
+            state = self.hass.states.get(entity_id)
+            if state is None:
+                _LOGGER.warning(f"Устройство {entity_id} не найдено в Home Assistant")
+                return False
+            
+            # Проверяем атрибут available (если есть)
+            available = state.attributes.get("available", True)
+            if not available:
+                _LOGGER.warning(f"Устройство {entity_id} помечено как недоступное")
+                return False
+            
+            # Проверяем состояние (для медиаплееров)
+            # Если устройство выключено (state == "off"), оно может быть недоступно для стриминга
+            if state.state == "off":
+                _LOGGER.warning(f"Устройство {entity_id} выключено (state: off)")
+                return False
+            
+            # Для DLNA-устройств также можно проверить дополнительные атрибуты
+            # Например, source_list, supported_features и т.д.
+            return True
+        except Exception as e:
+            _LOGGER.error(f"Ошибка при проверке доступности устройства {entity_id}: {e}")
+            return False
+
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
+        # Проверить доступность устройств в Home Assistant перед запуском стриминга
+        if not await self._check_device_availability(self._source_entity):
+            _LOGGER.error(f"Источник {self._source_entity} недоступен. Стриминг не запущен.")
+            return
+        
+        if not await self._check_device_availability(self._target_entity):
+            _LOGGER.error(f"Приёмник {self._target_entity} недоступен. Стриминг не запущен.")
+            return
+        
         # Определяем device_id выбранных устройств через их атрибуты
         # Для простоты используем entity_id как идентификатор устройства в API
         # В реальности нужно сопоставить entity_id с device_id через API обнаружения
@@ -169,6 +205,19 @@ class Ya2DLNASwitch(SwitchEntity):
                         self._state = data.get("status") == "streaming"
                     else:
                         _LOGGER.debug(f"Status endpoint returned {resp.status}")
+                
+                # Дополнительная проверка: если переключатель включен, но устройства недоступны,
+                # автоматически выключаем переключатель
+                if self._state:
+                    source_available = await self._check_device_availability(self._source_entity)
+                    target_available = await self._check_device_availability(self._target_entity)
+                    if not source_available or not target_available:
+                        _LOGGER.warning(
+                            f"Переключатель включен, но устройства недоступны (источник: {source_available}, приёмник: {target_available}). "
+                            "Автоматически выключаем переключатель."
+                        )
+                        self._state = False
+                        self.async_write_ha_state()
         except asyncio.TimeoutError:
             _LOGGER.debug("Timeout while updating switch state")
         except Exception as e:

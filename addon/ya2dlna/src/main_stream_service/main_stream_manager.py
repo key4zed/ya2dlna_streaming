@@ -6,6 +6,7 @@ import aiohttp
 from injector import inject
 
 from core.config.settings import settings
+from core.device_manager import DeviceManager, DeviceEvent, DeviceEventType
 from dlna_stream_server.handlers.dlna_controller import DLNAController
 from main_stream_service.yandex_music_api import YandexMusicAPI
 from yandex_station.constants import (
@@ -30,15 +31,57 @@ class MainStreamManager:
         station_controls: YandexStationControls,
         dlna_controls: DLNAController,
         yandex_music_api: Optional[YandexMusicAPI],
+        device_manager: DeviceManager,
     ) -> None:
         self._ws_client = station_ws_client
         self._station_controls = station_controls
         self._dlna_controls = dlna_controls
         self._yandex_music_api = yandex_music_api
+        self._device_manager = device_manager
         self._stream_server_url = settings.local_server_host
         self._dlna_volume = 0
         self._stream_state_running = False
         self._tasks: list[asyncio.Task] = []
+        self._device_monitoring_task: Optional[asyncio.Task] = None
+        # Подписываемся на события устройств
+        self._device_manager.add_callback(self._handle_device_event)
+
+    def get_status(self) -> str:
+        """Получить текущий статус стриминга."""
+        return "streaming" if self._stream_state_running else "idle"
+
+    def _handle_device_event(self, event: DeviceEvent) -> None:
+        """Обработчик событий устройств."""
+        logger.debug(f"Получено событие устройства: {event.event_type} для {event.device.name}")
+        
+        # Если стриминг не запущен, игнорируем события
+        if not self._stream_state_running:
+            return
+        
+        # Проверяем, связано ли событие с активными устройствами
+        active_source = self._device_manager.get_active_source()
+        active_target = self._device_manager.get_active_target()
+        
+        source_device_id = active_source.device_id if active_source else None
+        target_device_id = active_target.device_id if active_target else None
+        
+        event_device_id = event.device.device_id
+        
+        # Если устройство удалено или стало недоступным
+        if event.event_type in (DeviceEventType.DEVICE_REMOVED, DeviceEventType.DEVICE_UNAVAILABLE):
+            # Проверяем, является ли это устройство активным источником или приёмником
+            if event_device_id == source_device_id or event_device_id == target_device_id:
+                logger.warning(f"Активное устройство {event.device.name} стало недоступным. Останавливаем стриминг.")
+                # Запускаем остановку стриминга в фоне
+                asyncio.create_task(self._stop_due_to_device_unavailable())
+
+    async def _stop_due_to_device_unavailable(self) -> None:
+        """Остановить стриминг из-за недоступности устройства."""
+        try:
+            logger.info("Автоматическая остановка стриминга из-за недоступности устройства")
+            await self.stop()
+        except Exception as e:
+            logger.error(f"Ошибка при автоматической остановке стриминга: {e}")
 
     async def start(self) -> None:
         """Запуск всех стриминговых процессов."""
@@ -49,6 +92,9 @@ class MainStreamManager:
         logger.info("🎵 Запуск стриминга")
         self._stream_state_running = True
 
+        # Запускаем мониторинг устройств
+        await self._start_device_monitoring()
+
         # Запуск WebSocket-клиента
         logger.info("🔄 Запуск WebSocket клиента")
         await self._station_controls.start_ws_client()
@@ -56,6 +102,22 @@ class MainStreamManager:
         stream_task = asyncio.create_task(self._wrap_streaming())
         logger.info("✅ WebSocket клиент запущен")
         self._tasks.append(stream_task)
+
+    async def _start_device_monitoring(self) -> None:
+        """Запустить мониторинг устройств."""
+        try:
+            await self._device_manager.start_monitoring(interval=30.0)
+            logger.info("Мониторинг устройств запущен")
+        except Exception as e:
+            logger.error(f"Не удалось запустить мониторинг устройств: {e}")
+
+    async def _stop_device_monitoring(self) -> None:
+        """Остановить мониторинг устройств."""
+        try:
+            await self._device_manager.stop_monitoring()
+            logger.info("Мониторинг устройств остановлен")
+        except Exception as e:
+            logger.error(f"Не удалось остановить мониторинг устройств: {e}")
 
     async def stop(self) -> None:
         """Остановка всех стриминговых процессов."""

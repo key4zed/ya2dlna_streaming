@@ -1,6 +1,8 @@
 import asyncio
 from logging import getLogger
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable, Any
+from dataclasses import dataclass, field
+from enum import Enum
 
 from core.config.settings import settings
 from core.models.devices import (
@@ -15,6 +17,25 @@ from yandex_station.mdns_device_finder import DeviceFinder
 logger = getLogger(__name__)
 
 
+class DeviceEventType(str, Enum):
+    """Типы событий устройств."""
+    DEVICE_ADDED = "device_added"
+    DEVICE_REMOVED = "device_removed"
+    DEVICE_UPDATED = "device_updated"
+    DEVICE_UNAVAILABLE = "device_unavailable"
+
+
+@dataclass
+class DeviceEvent:
+    """Событие устройства."""
+    event_type: DeviceEventType
+    device: DeviceInfo
+    timestamp: float = field(default_factory=lambda: asyncio.get_event_loop().time())
+
+
+DeviceCallback = Callable[[DeviceEvent], Any]
+
+
 class DeviceManager:
     """Менеджер устройств для обнаружения и управления источниками и приёмниками."""
 
@@ -26,6 +47,11 @@ class DeviceManager:
         self._devices: Dict[str, DeviceInfo] = {}
         self._active_source_id: Optional[str] = None
         self._active_target_id: Optional[str] = None
+        self._callbacks: List[DeviceCallback] = []
+        self._monitoring_task: Optional[asyncio.Task] = None
+        self._is_monitoring = False
+        self._last_discovery_time: float = 0.0
+        self._discovery_interval: float = 30.0  # Интервал обнаружения в секундах
 
     async def discover_yandex_stations(self) -> List[YandexStation]:
         """Обнаружить Яндекс Станции в сети."""
@@ -94,24 +120,45 @@ class DeviceManager:
         object_id = entity_id.split(".")[-1]
         logger.debug(f"Поиск устройства по entity_id {entity_id}, object_id={object_id}")
         
+        # 0. Логируем все доступные устройства для отладки
+        if not self._devices:
+            logger.warning("Нет доступных устройств. Возможно, обнаружение ещё не выполнено.")
+        else:
+            logger.debug(f"Доступные устройства: {[d.name for d in self._devices.values()]}")
+        
         # 1. Прямое совпадение device_id == entity_id (на случай, если передали device_id)
         if entity_id in self._devices:
             logger.debug(f"Найдено прямое совпадение device_id: {entity_id}")
             return self._devices[entity_id]
         
-        # 2. Поиск по имени (name) - для Яндекс Станций name = "Yandex Station {platform}"
+        # 2. Удаляем префикс "media_player." и пробуем найти по object_id
+        #    Например, "yandex_station_ultraviolet" -> "ultraviolet"
+        #    или "am8_renderer" -> "am8_renderer"
+        #    Убираем возможные префиксы "yandex_station_", "yandex_", "station_"
+        search_terms = [object_id]
+        if object_id.startswith("yandex_station_"):
+            search_terms.append(object_id.replace("yandex_station_", ""))
+        if object_id.startswith("yandex_"):
+            search_terms.append(object_id.replace("yandex_", ""))
+        if object_id.startswith("station_"):
+            search_terms.append(object_id.replace("station_", ""))
+        
+        # 3. Поиск по имени (name) - для Яндекс Станций name = "Yandex Station {platform}"
         #    object_id может содержать platform (например, "ultraviolet")
         for device in self._devices.values():
             device_name_normalized = device.name.lower().replace(" ", "_")
-            if device_name_normalized == object_id:
-                logger.debug(f"Найдено по имени: {device.name}")
-                return device
-            # Проверим, содержит ли object_id часть имени
-            if object_id in device_name_normalized:
-                logger.debug(f"Найдено по части имени: {device.name}")
-                return device
+            
+            # Проверяем все варианты поиска
+            for term in search_terms:
+                if device_name_normalized == term:
+                    logger.debug(f"Найдено по имени: {device.name} (термин: {term})")
+                    return device
+                # Проверим, содержит ли term часть имени
+                if term in device_name_normalized:
+                    logger.debug(f"Найдено по части имени: {device.name} (термин: {term})")
+                    return device
         
-        # 3. Для Яндекс Станций: object_id может быть platform (например, "yandexstation")
+        # 4. Для Яндекс Станций: object_id может быть platform (например, "ultraviolet")
         for device in self._devices.values():
             if device.device_type == DeviceType.YANDEX_STATION:
                 platform = None
@@ -119,11 +166,17 @@ class DeviceManager:
                     platform = device.platform
                 elif 'platform' in device.extra:
                     platform = device.extra['platform']
-                if platform and object_id == platform.lower():
-                    logger.debug(f"Найдено по platform: {platform}")
-                    return device
+                if platform:
+                    platform_normalized = platform.lower()
+                    for term in search_terms:
+                        if platform_normalized == term:
+                            logger.debug(f"Найдено по platform: {platform} (термин: {term})")
+                            return device
+                        if term in platform_normalized:
+                            logger.debug(f"Найдено по части platform: {platform} (термин: {term})")
+                            return device
         
-        # 4. Для DLNA: object_id может быть friendly_name (например, "AM8 Renderer")
+        # 5. Для DLNA: object_id может быть friendly_name (например, "AM8 Renderer")
         for device in self._devices.values():
             if device.device_type == DeviceType.DLNA_RENDERER:
                 friendly_name = None
@@ -131,11 +184,23 @@ class DeviceManager:
                     friendly_name = device.friendly_name
                 elif 'friendly_name' in device.extra:
                     friendly_name = device.extra['friendly_name']
-                if friendly_name and object_id == friendly_name.lower().replace(" ", "_"):
-                    logger.debug(f"Найдено по friendly_name: {friendly_name}")
-                    return device
+                if friendly_name:
+                    friendly_name_normalized = friendly_name.lower().replace(" ", "_")
+                    for term in search_terms:
+                        if friendly_name_normalized == term:
+                            logger.debug(f"Найдено по friendly_name: {friendly_name} (термин: {term})")
+                            return device
+                        if term in friendly_name_normalized:
+                            logger.debug(f"Найдено по части friendly_name: {friendly_name} (термин: {term})")
+                            return device
         
-        logger.warning(f"Устройство с entity_id {entity_id} не найдено. Доступные устройства: {list(self._devices.keys())}")
+        # 6. Дополнительно: поиск по hostname или IP
+        for device in self._devices.values():
+            if device.host and object_id in device.host:
+                logger.debug(f"Найдено по host: {device.host}")
+                return device
+        
+        logger.warning(f"Устройство с entity_id {entity_id} не найдено. Доступные устройства: {[(d.name, d.device_type.value) for d in self._devices.values()]}")
         return None
 
     def list_devices(self, device_type: Optional[DeviceType] = None) -> List[DeviceInfo]:
@@ -203,3 +268,132 @@ class DeviceManager:
         self._active_source_id = None
         self._active_target_id = None
         logger.info("Активные устройства сброшены.")
+
+    # Методы для мониторинга устройств
+    def add_callback(self, callback: DeviceCallback) -> None:
+        """Добавить callback для получения событий устройств."""
+        self._callbacks.append(callback)
+        logger.debug(f"Добавлен callback для событий устройств. Всего callbacks: {len(self._callbacks)}")
+
+    def remove_callback(self, callback: DeviceCallback) -> None:
+        """Удалить callback."""
+        if callback in self._callbacks:
+            self._callbacks.remove(callback)
+            logger.debug(f"Удалён callback для событий устройств. Осталось callbacks: {len(self._callbacks)}")
+
+    def _notify_callbacks(self, event: DeviceEvent) -> None:
+        """Уведомить все зарегистрированные callbacks о событии."""
+        for callback in self._callbacks:
+            try:
+                callback(event)
+            except Exception as e:
+                logger.error(f"Ошибка в callback при обработке события {event.event_type}: {e}")
+
+    async def _perform_discovery(self) -> Dict[str, DeviceInfo]:
+        """Выполнить обнаружение устройств и вернуть новый словарь устройств."""
+        old_devices = self._devices.copy()
+        await self.discover_all()
+        new_devices = self._devices
+        
+        # Определяем изменения
+        added = {device_id: device for device_id, device in new_devices.items()
+                 if device_id not in old_devices}
+        removed = {device_id: device for device_id, device in old_devices.items()
+                   if device_id not in new_devices}
+        
+        # Уведомляем о добавленных устройствах
+        for device_id, device in added.items():
+            logger.info(f"Устройство добавлено: {device.name} ({device_id})")
+            self._notify_callbacks(DeviceEvent(
+                event_type=DeviceEventType.DEVICE_ADDED,
+                device=device
+            ))
+        
+        # Уведомляем об удалённых устройствах
+        for device_id, device in removed.items():
+            logger.info(f"Устройство удалено: {device.name} ({device_id})")
+            self._notify_callbacks(DeviceEvent(
+                event_type=DeviceEventType.DEVICE_REMOVED,
+                device=device
+            ))
+            
+            # Если удалённое устройство было активным, сбрасываем активное устройство
+            if device_id == self._active_source_id:
+                logger.warning(f"Активный источник {device.name} удалён. Сбрасываем активный источник.")
+                self._active_source_id = None
+            if device_id == self._active_target_id:
+                logger.warning(f"Активный приёмник {device.name} удалён. Сбрасываем активный приёмник.")
+                self._active_target_id = None
+        
+        return new_devices
+
+    async def start_monitoring(self, interval: float = None) -> None:
+        """Запустить фоновый мониторинг устройств."""
+        if self._is_monitoring:
+            logger.warning("Мониторинг устройств уже запущен.")
+            return
+        
+        if interval is not None:
+            self._discovery_interval = interval
+        
+        self._is_monitoring = True
+        self._monitoring_task = asyncio.create_task(self._monitoring_loop())
+        logger.info(f"Мониторинг устройств запущен с интервалом {self._discovery_interval} секунд.")
+
+    async def stop_monitoring(self) -> None:
+        """Остановить фоновый мониторинг устройств."""
+        if not self._is_monitoring:
+            return
+        
+        self._is_monitoring = False
+        if self._monitoring_task:
+            self._monitoring_task.cancel()
+            try:
+                await self._monitoring_task
+            except asyncio.CancelledError:
+                pass
+            self._monitoring_task = None
+        logger.info("Мониторинг устройств остановлен.")
+
+    async def _monitoring_loop(self) -> None:
+        """Фоновый цикл мониторинга устройств."""
+        logger.info("Запущен цикл мониторинга устройств.")
+        try:
+            while self._is_monitoring:
+                try:
+                    await self._perform_discovery()
+                except Exception as e:
+                    logger.error(f"Ошибка при обнаружении устройств: {e}")
+                
+                # Ждём перед следующим обнаружением
+                await asyncio.sleep(self._discovery_interval)
+        except asyncio.CancelledError:
+            logger.info("Цикл мониторинга устройств отменён.")
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка в цикле мониторинга: {e}")
+        finally:
+            self._is_monitoring = False
+            logger.info("Цикл мониторинга устройств завершён.")
+
+    def is_device_available(self, device_id: str) -> bool:
+        """Проверить, доступно ли устройство."""
+        return device_id in self._devices
+
+    def get_device_status(self, device_id: str) -> Optional[str]:
+        """Получить статус устройства."""
+        if device_id not in self._devices:
+            return "not_found"
+        
+        device = self._devices[device_id]
+        # Для DLNA-устройств можно проверить доступность через контроллер
+        if device.device_type == DeviceType.DLNA_RENDERER:
+            # Проверяем, инициализирован ли контроллер и доступно ли устройство
+            if self._dlna_controller.device is None:
+                return "unavailable"
+            # Можно добавить ping или проверку соединения
+            return "available"
+        elif device.device_type == DeviceType.YANDEX_STATION:
+            # Для Яндекс Станций проверяем наличие в сети
+            return "available"  # Упрощённо, можно добавить ping
+        
+        return "unknown"

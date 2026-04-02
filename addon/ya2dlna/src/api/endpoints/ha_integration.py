@@ -123,5 +123,5 @@ async def stop_streaming():
 @router.get("/stream/status")
 async def get_stream_status():
     """Получить статус стриминга."""
-    # TODO: получить реальный статус из MainStreamManager
-    return {"status": "unknown"}
+    status = main_stream_manager.get_status()
+    return {"status": status}

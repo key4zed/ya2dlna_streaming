@@ -118,10 +118,16 @@ class DLNAController:
     #  ConnectionManager
     async def get_protocol_info(self) -> Dict[str, str]:
         """Получение списка поддерживаемых форматов."""
+        if self.connection_manager is None:
+            logger.warning("❌ connection_manager не инициализирован, возвращаем пустой словарь")
+            return {}
         return await asyncio.to_thread(self.connection_manager.GetProtocolInfo)
 
     async def get_current_connection_ids(self) -> List[str]:
         """Получение списка активных соединений."""
+        if self.connection_manager is None:
+            logger.warning("❌ connection_manager не инициализирован, возвращаем пустой список")
+            return []
         return (await asyncio.to_thread(
             self.connection_manager.GetCurrentConnectionIDs
         ))["ConnectionIDs"]
@@ -130,6 +136,9 @@ class DLNAController:
         self, connection_id: int
     ) -> Dict[str, Any]:
         """Получение информации о соединении."""
+        if self.connection_manager is None:
+            logger.warning("❌ connection_manager не инициализирован, возвращаем пустой словарь")
+            return {}
         return await asyncio.to_thread(
             self.connection_manager.GetCurrentConnectionInfo,
             ConnectionID=connection_id
@@ -138,6 +147,9 @@ class DLNAController:
     #   AVTransport
     async def set_av_transport_uri(self, uri: str) -> None:
         """Установка нового потока."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, пропускаем установку URI")
+            return
         metadata = self.generate_metadata_with_fake_duration(uri)
         await asyncio.to_thread(
             self.av_transport.SetAVTransportURI,
@@ -149,6 +161,9 @@ class DLNAController:
 
     async def play(self) -> None:
         """Запуск воспроизведения."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, пропускаем воспроизведение")
+            return
         await asyncio.to_thread(
             self.av_transport.Play, InstanceID=0, Speed="1"
         )
@@ -156,6 +171,9 @@ class DLNAController:
 
     async def pause(self) -> None:
         """Приостановка воспроизведения."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, пропускаем паузу")
+            return
         await asyncio.to_thread(self.av_transport.Pause, InstanceID=0)
         logger.info("⏸ Воспроизведение приостановлено")
 
@@ -171,16 +189,25 @@ class DLNAController:
 
     async def next_track(self) -> None:
         """Переключение на следующий трек."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, пропускаем next_track")
+            return
         await asyncio.to_thread(self.av_transport.Next, InstanceID=0)
         logger.info("⏭ Следующий трек")
 
     async def previous_track(self) -> None:
         """Переключение на предыдущий трек."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, пропускаем previous_track")
+            return
         await asyncio.to_thread(self.av_transport.Previous, InstanceID=0)
         logger.info("⏮ Предыдущий трек")
 
     async def seek(self, target: str, unit: SeekUnitType = "REL_TIME") -> None:
         """Перемотка на указанное время (например, '00:01:30')."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, пропускаем перемотку")
+            return
         await asyncio.to_thread(
             self.av_transport.Seek,
             InstanceID=0,
@@ -191,12 +218,18 @@ class DLNAController:
 
     async def get_media_info(self) -> Dict[str, Any]:
         """Получение информации о текущем медиафайле."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, возвращаем пустой словарь")
+            return {}
         return await asyncio.to_thread(
             self.av_transport.GetMediaInfo, InstanceID=0
         )
 
     async def get_position_info(self) -> Dict[str, Any]:
         """Получение информации о текущей позиции воспроизведения."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, возвращаем пустой словарь")
+            return {}
         return await asyncio.to_thread(
             self.av_transport.GetPositionInfo, InstanceID=0
         )
@@ -213,6 +246,9 @@ class DLNAController:
 
     async def get_transport_settings(self) -> Dict[str, Any]:
         """Получение настроек воспроизведения."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, возвращаем пустой словарь")
+            return {}
         return await asyncio.to_thread(
             self.av_transport.GetTransportSettings,
             InstanceID=0
@@ -237,6 +273,9 @@ class DLNAController:
 
     async def set_play_mode(self, mode: PlayModeType) -> None:
         """Установка режима воспроизведения."""
+        if self.av_transport is None:
+            logger.warning("❌ av_transport не инициализирован, пропускаем установку режима воспроизведения")
+            return
         await asyncio.to_thread(
             self.av_transport.SetPlayMode,
             InstanceID=0,
@@ -272,6 +311,9 @@ class DLNAController:
 
     async def get_mute(self) -> bool:
         """Получение состояния mute."""
+        if self.rendering_control is None:
+            logger.warning("❌ rendering_control не инициализирован, возвращаем False")
+            return False
         result = await asyncio.to_thread(
             self.rendering_control.GetMute,
             InstanceID=0,
@@ -281,6 +323,9 @@ class DLNAController:
 
     async def set_mute(self, mute: bool) -> None:
         """Отключение/включение звука."""
+        if self.rendering_control is None:
+            logger.warning("❌ rendering_control не инициализирован, пропускаем установку mute")
+            return
         await asyncio.to_thread(
             self.rendering_control.SetMute,
             InstanceID=0,
@@ -297,6 +342,10 @@ class DLNAController:
             delay: float = 0.1
     ):
         """Плавное уменьшение громкости в несколько шагов."""
+        if self.rendering_control is None:
+            logger.warning("❌ rendering_control не инициализирован, пропускаем fade_out")
+            return
+        
         volume = start_volume - start_volume % 2
 
         logger.info(
@@ -316,6 +365,9 @@ class DLNAController:
 
     async def list_presets(self) -> str:
         """Получение списка пресетов."""
+        if self.rendering_control is None:
+            logger.warning("❌ rendering_control не инициализирован, возвращаем пустую строку")
+            return ""
         result = await asyncio.to_thread(
             self.rendering_control.ListPresets,
             InstanceID=0
@@ -324,6 +376,9 @@ class DLNAController:
 
     async def select_preset(self, preset_name: str) -> None:
         """Выбор пресета."""
+        if self.rendering_control is None:
+            logger.warning("❌ rendering_control не инициализирован, пропускаем выбор пресета")
+            return
         await asyncio.to_thread(
             self.rendering_control.SelectPreset,
             InstanceID=0,
@@ -338,6 +393,9 @@ class DLNAController:
 
     async def print_status(self) -> None:
         """Вывод текущего состояния устройства."""
+        if self.device is None:
+            logger.warning("❌ Устройство не инициализировано, невозможно вывести статус")
+            return
         logger.info("🎶 Текущее состояние DLNA‑устройства:")
         volume = await self.get_volume()
         mute = await self.get_mute()
