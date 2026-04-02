@@ -6,15 +6,10 @@ from typing import Optional
 class TokenStorage:
     """Класс для хранения токенов, переданных через API."""
     
-    _instance = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._x_token: Optional[str] = None
-            cls._instance._cookie: Optional[str] = None
-            cls._instance._ya_music_token: Optional[str] = None
-        return cls._instance
+    def __init__(self):
+        self._x_token: Optional[str] = None
+        self._cookie: Optional[str] = None
+        self._ya_music_token: Optional[str] = None
     
     @property
     def x_token(self) -> Optional[str]:
@@ -47,4 +42,5 @@ class TokenStorage:
         self._ya_music_token = None
 
 
+# Глобальный экземпляр хранилища токенов
 token_storage = TokenStorage()

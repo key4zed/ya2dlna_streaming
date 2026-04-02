@@ -40,11 +40,14 @@ DeviceCallback = Callable[[DeviceEvent], Any]
 class DeviceManager:
     """Менеджер устройств для обнаружения и управления источниками и приёмниками."""
 
-    def __init__(self):
+    def __init__(self, dlna_controller: Optional[DLNAController] = None):
         self._yandex_finder = DeviceFinder()
         # Используем имя устройства из настроек, если указано, иначе "DLNA Renderer"
         device_name = settings.dlna_device_name or "DLNA Renderer"
-        self._dlna_controller = DLNAController(device_name=device_name)
+        if dlna_controller is None:
+            self._dlna_controller = DLNAController(device_name=device_name)
+        else:
+            self._dlna_controller = dlna_controller
         self._devices: Dict[str, DeviceInfo] = {}
         self._active_source_id: Optional[str] = None
         self._active_target_id: Optional[str] = None

@@ -74,8 +74,8 @@ class YandexStationClientModule(Module):
     """Класс для управления зависимостями Yandex Station Client"""
     @singleton
     @provider
-    def provide_yandex_station_client(self) -> YandexStationClient:
-        return YandexStationClient(device_finder=DeviceFinder())
+    def provide_yandex_station_client(self, device_finder: DeviceFinder) -> YandexStationClient:
+        return YandexStationClient(device_finder=device_finder)
 
 
 class YandexStationControlsModule(Module):
@@ -137,10 +137,7 @@ class DeviceManagerModule(Module):
     """Класс для управления зависимостями DeviceManager"""
     @singleton
     @provider
-    def provide_device_manager(self) -> DeviceManager:
-        return DeviceManager()
+    def provide_device_manager(self, dlna_controller: DLNAController) -> DeviceManager:
+        return DeviceManager(dlna_controller=dlna_controller)
 
 
-class RuarkR5ControllerModule(DLNAControllerModule):
-    """Алиас для обратной совместимости (старое название модуля)"""
-    pass

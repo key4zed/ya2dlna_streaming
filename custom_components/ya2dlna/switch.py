@@ -35,7 +35,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     ruark_pin = get_config(CONF_RUARK_PIN, "")
     mute_yandex_station = get_config(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
 
-    switch = Ya2DLNASwitch(
+    # Создаём основной switch для управления стримингом
+    streaming_switch = Ya2DLNASwitch(
         hass,
         api_host,
         api_port,
@@ -47,7 +48,17 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         mute_yandex_station,
         config_entry.entry_id,
     )
-    async_add_entities([switch])
+    
+    # Создаём дополнительный switch для управления mute_yandex_station
+    mute_switch = Ya2DLNAMuteSwitch(
+        hass,
+        api_host,
+        api_port,
+        config_entry.entry_id,
+        mute_yandex_station,
+    )
+    
+    async_add_entities([streaming_switch, mute_switch])
 
 
 class Ya2DLNASwitch(SwitchEntity):
@@ -394,3 +405,77 @@ class Ya2DLNASwitch(SwitchEntity):
             _LOGGER.debug("Timeout while updating switch state")
         except Exception as e:
             _LOGGER.debug(f"Could not update switch state from {self._api_host}:{self._api_port}: {e}")
+
+
+class Ya2DLNAMuteSwitch(SwitchEntity):
+    """Переключатель для управления mute_yandex_station (отключение звука на Яндекс.Станции)."""
+    
+    def __init__(self, hass, api_host, api_port, entry_id, initial_mute_state):
+        """Initialize the mute switch."""
+        self.hass = hass
+        self._api_host = api_host
+        self._api_port = api_port
+        self._entry_id = entry_id
+        self._state = initial_mute_state  # True = mute включен (звук отключен), False = mute выключен (звук включен)
+        self._attr_name = "Ya2DLNA Mute Station"
+        self._attr_unique_id = f"ya2dlna_mute_switch_{entry_id}"
+        self._ha_version = getattr(hass.config, "version", "unknown")
+    
+    @property
+    def is_on(self):
+        """Return true if mute is enabled (sound is muted)."""
+        return self._state
+    
+    async def async_turn_on(self, **kwargs):
+        """Turn the mute on (mute sound on Yandex Station)."""
+        await self._set_mute_state(True)
+    
+    async def async_turn_off(self, **kwargs):
+        """Turn the mute off (unmute sound on Yandex Station)."""
+        await self._set_mute_state(False)
+    
+    async def _set_mute_state(self, mute_state: bool):
+        """Установить состояние mute и обновить конфигурацию."""
+        try:
+            # Обновляем состояние в конфигурации интеграции (options)
+            entry = self.hass.config_entries.async_get_entry(self._entry_id)
+            if entry is None:
+                _LOGGER.error(f"Запись конфигурации {self._entry_id} не найдена")
+                return
+            
+            # Создаем обновленные options
+            new_options = dict(entry.options)
+            new_options[CONF_MUTE_YANDEX_STATION] = mute_state
+            
+            # Обновляем запись конфигурации
+            self.hass.config_entries.async_update_entry(entry, options=new_options)
+            
+            # Обновляем внутреннее состояние
+            self._state = mute_state
+            self.async_write_ha_state()
+            
+            _LOGGER.info(f"Mute Yandex Station установлен в {mute_state}")
+            
+            # Если стриминг сейчас активен, можно отправить команду на обновление параметров
+            # Но это не обязательно, так как при следующем запуске стриминга будет использовано новое значение
+            # Можно отправить API запрос для обновления параметров на лету, но это сложнее
+            # Пока просто обновляем конфигурацию
+            
+        except Exception as e:
+            _LOGGER.error(f"Ошибка при установке mute состояния: {e}")
+    
+    async def async_update(self):
+        """Update switch state from configuration."""
+        try:
+            entry = self.hass.config_entries.async_get_entry(self._entry_id)
+            if entry is None:
+                return
+            
+            # Получаем текущее значение из конфигурации
+            def get_config(key, default=None):
+                return entry.options.get(key, entry.data.get(key, default))
+            
+            current_mute = get_config(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
+            self._state = current_mute
+        except Exception as e:
+            _LOGGER.debug(f"Could not update mute switch state: {e}")
