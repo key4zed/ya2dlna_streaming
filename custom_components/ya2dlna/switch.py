@@ -121,6 +121,11 @@ class Ya2DLNASwitch(SwitchEntity):
             if state is None:
                 return {}
             
+            # Определяем domain устройства
+            domain = ""
+            if "." in entity_id:
+                domain = entity_id.split(".")[0]
+            
             info = {
                 "entity_id": entity_id,
                 "ip_address": "",
@@ -132,9 +137,31 @@ class Ya2DLNASwitch(SwitchEntity):
             }
             
             # Извлекаем IP адрес из атрибутов
+            ip_address = None
+            
             # Для Яндекс Станций: атрибут host или ip_address
-            # Для DLNA: атрибут ssdp_location или host
-            ip_address = state.attributes.get("host") or state.attributes.get("ip_address")
+            if domain == "media_player" and "yandex_station" in entity_id:
+                ip_address = state.attributes.get("host") or state.attributes.get("ip_address")
+            # Для DLNA устройств: извлекаем из ssdp_location или host
+            elif domain == "media_player" and ("dlna" in entity_id.lower() or state.attributes.get("ssdp_location")):
+                # Пробуем извлечь IP из ssdp_location (URL)
+                ssdp_location = state.attributes.get("ssdp_location")
+                if ssdp_location:
+                    try:
+                        from urllib.parse import urlparse
+                        parsed = urlparse(ssdp_location)
+                        if parsed.hostname:
+                            ip_address = parsed.hostname
+                            # Если это доменное имя, а не IP, оставляем как есть
+                            # (add-on сам разрешит его)
+                    except Exception:
+                        pass
+                if not ip_address:
+                    ip_address = state.attributes.get("host") or state.attributes.get("ip_address")
+            # Для других устройств
+            else:
+                ip_address = state.attributes.get("host") or state.attributes.get("ip_address")
+            
             if ip_address:
                 info["ip_address"] = ip_address
             
@@ -145,6 +172,20 @@ class Ya2DLNASwitch(SwitchEntity):
                     info["mac_addresses"] = mac_address
                 else:
                     info["mac_addresses"] = [mac_address]
+            # Для DLNA устройств может быть два MAC адреса (Ethernet и Wi-Fi)
+            # Проверяем дополнительные атрибуты
+            elif domain == "media_player" and ("dlna" in entity_id.lower() or state.attributes.get("ssdp_location")):
+                mac_addresses = []
+                # Проверяем стандартные атрибуты
+                for attr in ["mac_address_ethernet", "mac_address_wifi", "mac_address_wireless"]:
+                    mac = state.attributes.get(attr)
+                    if mac:
+                        if isinstance(mac, list):
+                            mac_addresses.extend(mac)
+                        else:
+                            mac_addresses.append(mac)
+                if mac_addresses:
+                    info["mac_addresses"] = list(set(mac_addresses))  # Убираем дубликаты
             
             # Платформа (для Яндекс Станций)
             platform = state.attributes.get("platform")
@@ -163,9 +204,7 @@ class Ya2DLNASwitch(SwitchEntity):
             
             # Дополнительные атрибуты
             extra = {}
-            # Добавляем domain для определения типа устройства
-            if "." in entity_id:
-                domain = entity_id.split(".")[0]
+            if domain:
                 extra["domain"] = domain
             
             # Добавляем manufacturer и model если есть
@@ -175,6 +214,12 @@ class Ya2DLNASwitch(SwitchEntity):
             model = state.attributes.get("model")
             if model:
                 extra["model"] = model
+            
+            # Добавляем информацию о типе устройства
+            if "yandex_station" in entity_id.lower() or platform:
+                extra["device_type"] = "yandex_station"
+            elif "dlna" in entity_id.lower() or renderer_url:
+                extra["device_type"] = "dlna_renderer"
             
             info["extra"] = extra
             
