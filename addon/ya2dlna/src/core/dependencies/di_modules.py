@@ -52,13 +52,15 @@ class MainStreamManagerModule(Module):
         station_ws_client: YandexStationClient,
         station_controls: YandexStationControls,
         dlna_controls: DLNAController,
-        yandex_music_api: Optional[YandexMusicAPI]
+        yandex_music_api: Optional[YandexMusicAPI],
+        device_manager: DeviceManager
     ) -> MainStreamManager:
         return MainStreamManager(
             station_ws_client=station_ws_client,
             station_controls=station_controls,
             dlna_controls=dlna_controls,
-            yandex_music_api=yandex_music_api
+            yandex_music_api=yandex_music_api,
+            device_manager=device_manager
         )
 
 

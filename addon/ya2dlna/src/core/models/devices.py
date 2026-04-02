@@ -1,6 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Optional, List
 
 
 class DeviceType(str, Enum):
@@ -25,13 +25,15 @@ class DeviceInfo:
     device_type: DeviceType
     host: str
     port: int
-    extra: dict
+    ip_address: str = ""
+    mac_addresses: List[str] = field(default_factory=list)
+    extra: dict = field(default_factory=dict)
 
 
 @dataclass
 class YandexStation(DeviceInfo):
     """Яндекс Станция как источник звука."""
-    platform: str
+    platform: str = ""
     volume: int = 0
     muted: bool = False
     alice_state: str = "IDLE"
@@ -40,8 +42,8 @@ class YandexStation(DeviceInfo):
 @dataclass
 class DlnaRenderer(DeviceInfo):
     """DLNA-устройство как приёмник звука."""
-    renderer_url: str
-    friendly_name: str
+    renderer_url: str = ""
+    friendly_name: str = ""
     volume: int = 0
     power: bool = False
 

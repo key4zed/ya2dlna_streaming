@@ -114,6 +114,76 @@ class Ya2DLNASwitch(SwitchEntity):
             _LOGGER.error(f"Ошибка при проверке доступности устройства {entity_id} (HA {self._ha_version}): {e}")
             return False
 
+    async def _get_device_info(self, entity_id: str) -> dict:
+        """Получить информацию об устройстве из Home Assistant для передачи в API."""
+        try:
+            state = self.hass.states.get(entity_id)
+            if state is None:
+                return {}
+            
+            info = {
+                "entity_id": entity_id,
+                "ip_address": "",
+                "mac_addresses": [],
+                "platform": "",
+                "friendly_name": "",
+                "renderer_url": "",
+                "extra": {}
+            }
+            
+            # Извлекаем IP адрес из атрибутов
+            # Для Яндекс Станций: атрибут host или ip_address
+            # Для DLNA: атрибут ssdp_location или host
+            ip_address = state.attributes.get("host") or state.attributes.get("ip_address")
+            if ip_address:
+                info["ip_address"] = ip_address
+            
+            # Извлекаем MAC адрес(ы)
+            mac_address = state.attributes.get("mac_address")
+            if mac_address:
+                if isinstance(mac_address, list):
+                    info["mac_addresses"] = mac_address
+                else:
+                    info["mac_addresses"] = [mac_address]
+            
+            # Платформа (для Яндекс Станций)
+            platform = state.attributes.get("platform")
+            if platform:
+                info["platform"] = platform
+            
+            # Friendly name (для DLNA)
+            friendly_name = state.attributes.get("friendly_name") or state.attributes.get("device_name")
+            if friendly_name:
+                info["friendly_name"] = friendly_name
+            
+            # Renderer URL (для DLNA)
+            renderer_url = state.attributes.get("ssdp_location") or state.attributes.get("location")
+            if renderer_url:
+                info["renderer_url"] = renderer_url
+            
+            # Дополнительные атрибуты
+            extra = {}
+            # Добавляем domain для определения типа устройства
+            if "." in entity_id:
+                domain = entity_id.split(".")[0]
+                extra["domain"] = domain
+            
+            # Добавляем manufacturer и model если есть
+            manufacturer = state.attributes.get("manufacturer")
+            if manufacturer:
+                extra["manufacturer"] = manufacturer
+            model = state.attributes.get("model")
+            if model:
+                extra["model"] = model
+            
+            info["extra"] = extra
+            
+            _LOGGER.debug(f"Информация об устройстве {entity_id}: {info}")
+            return info
+        except Exception as e:
+            _LOGGER.error(f"Ошибка при получении информации об устройстве {entity_id} (HA {self._ha_version}): {e}")
+            return {}
+
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
         # Обновляем конфигурацию из записи (на случай изменения через options flow)
@@ -144,18 +214,32 @@ class Ya2DLNASwitch(SwitchEntity):
                     )
                     return
 
-                # Установить источник
+                # Получить информацию об устройствах
+                source_info = await self._get_device_info(self._source_entity)
+                target_info = await self._get_device_info(self._target_entity)
+                
+                # Установить источник с передачей дополнительной информации
                 source_url = f"http://{self._api_host}:{self._api_port}/ha/source/{self._source_entity}"
-                _LOGGER.debug(f"Setting source via {source_url}")
-                resp = await session.post(source_url)
+                _LOGGER.debug(f"Setting source via {source_url} with data: {source_info}")
+                resp = await session.post(
+                    source_url,
+                    json=source_info
+                )
                 if resp.status not in (200, 201, 204):
                     _LOGGER.warning(f"Failed to set source: {resp.status} (HA {self._ha_version})")
-                # Установить приёмник
+                    # Продолжаем, возможно устройство будет найдено другими методами
+                
+                # Установить приёмник с передачей дополнительной информации
                 target_url = f"http://{self._api_host}:{self._api_port}/ha/target/{self._target_entity}"
-                _LOGGER.debug(f"Setting target via {target_url}")
-                resp = await session.post(target_url)
+                _LOGGER.debug(f"Setting target via {target_url} with data: {target_info}")
+                resp = await session.post(
+                    target_url,
+                    json=target_info
+                )
                 if resp.status not in (200, 201, 204):
                     _LOGGER.warning(f"Failed to set target: {resp.status} (HA {self._ha_version})")
+                    # Продолжаем, возможно устройство будет найдено другими методами
+                
                 # Запустить стриминг с передачей x_token, cookie, ruark_pin и mute_yandex_station, если они есть
                 params = {}
                 if self._x_token:

@@ -210,41 +210,99 @@ class DeviceManager:
         return list(self._devices.values())
 
     def set_active_source(self, device_or_entity_id: str) -> bool:
-        """Установить активный источник звука."""
+        """Установить активный источник звука (обратная совместимость)."""
+        return self.set_active_source_with_details(
+            entity_id=device_or_entity_id,
+            ip_address=None,
+            mac_addresses=None,
+            platform=None,
+            extra=None,
+        )
+
+    def set_active_source_with_details(
+        self,
+        entity_id: str,
+        ip_address: Optional[str] = None,
+        mac_addresses: Optional[List[str]] = None,
+        platform: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Установить активный источник звука с дополнительными данными."""
         # Сначала попробуем найти устройство по device_id
-        device = self._devices.get(device_or_entity_id)
+        device = self._devices.get(entity_id)
         if not device:
-            # Если не найдено, попробуем найти по entity_id
-            device = self.find_device_by_entity_id(device_or_entity_id)
+            # Если не найдено, попробуем найти по entity_id с использованием дополнительных данных
+            device = self.find_device_by_entity_id(entity_id)
             if not device:
-                logger.warning(f"Устройство {device_or_entity_id} не найдено.")
+                logger.warning(f"Устройство {entity_id} не найдено.")
                 return False
         
         if device.device_type != DeviceType.YANDEX_STATION:
-            logger.warning(f"Устройство {device_or_entity_id} не является Яндекс Станцией.")
+            logger.warning(f"Устройство {entity_id} не является Яндекс Станцией.")
             return False
         
+        # Обновляем данные устройства, если переданы дополнительные сведения
+        if ip_address and not device.ip_address:
+            device.ip_address = ip_address
+        if mac_addresses and not device.mac_addresses:
+            device.mac_addresses = mac_addresses
+        if platform and isinstance(device, YandexStation) and not device.platform:
+            device.platform = platform
+        if extra:
+            device.extra = extra
+        
         self._active_source_id = device.device_id
-        logger.info(f"Активный источник установлен: {device.name}")
+        logger.info(f"Активный источник установлен: {device.name} (IP: {device.ip_address}, MAC: {device.mac_addresses})")
         return True
 
     def set_active_target(self, device_or_entity_id: str) -> bool:
-        """Установить активный приёмник звука."""
+        """Установить активный приёмник звука (обратная совместимость)."""
+        return self.set_active_target_with_details(
+            entity_id=device_or_entity_id,
+            ip_address=None,
+            mac_addresses=None,
+            friendly_name=None,
+            renderer_url=None,
+            extra=None,
+        )
+
+    def set_active_target_with_details(
+        self,
+        entity_id: str,
+        ip_address: Optional[str] = None,
+        mac_addresses: Optional[List[str]] = None,
+        friendly_name: Optional[str] = None,
+        renderer_url: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Установить активный приёмник звука с дополнительными данными."""
         # Сначала попробуем найти устройство по device_id
-        device = self._devices.get(device_or_entity_id)
+        device = self._devices.get(entity_id)
         if not device:
-            # Если не найдено, попробуем найти по entity_id
-            device = self.find_device_by_entity_id(device_or_entity_id)
+            # Если не найдено, попробуем найти по entity_id с использованием дополнительных данных
+            device = self.find_device_by_entity_id(entity_id)
             if not device:
-                logger.warning(f"Устройство {device_or_entity_id} не найдено.")
+                logger.warning(f"Устройство {entity_id} не найдено.")
                 return False
         
         if device.device_type != DeviceType.DLNA_RENDERER:
-            logger.warning(f"Устройство {device_or_entity_id} не является DLNA-рендерером.")
+            logger.warning(f"Устройство {entity_id} не является DLNA-рендерером.")
             return False
         
+        # Обновляем данные устройства, если переданы дополнительные сведения
+        if ip_address and not device.ip_address:
+            device.ip_address = ip_address
+        if mac_addresses and not device.mac_addresses:
+            device.mac_addresses = mac_addresses
+        if friendly_name and isinstance(device, DlnaRenderer) and not device.friendly_name:
+            device.friendly_name = friendly_name
+        if renderer_url and isinstance(device, DlnaRenderer) and not device.renderer_url:
+            device.renderer_url = renderer_url
+        if extra:
+            device.extra = extra
+        
         self._active_target_id = device.device_id
-        logger.info(f"Активный приёмник установлен: {device.name}")
+        logger.info(f"Активный приёмник установлен: {device.name} (IP: {device.ip_address}, MAC: {device.mac_addresses})")
         return True
 
     def get_active_source(self) -> Optional[YandexStation]:
