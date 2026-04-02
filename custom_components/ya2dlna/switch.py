@@ -69,7 +69,7 @@ class Ya2DLNASwitch(SwitchEntity):
         self._attr_name = "Ya2DLNA Streaming"
         self._attr_unique_id = f"ya2dlna_switch_{entry_id}"
         # Сохраняем версию Home Assistant для логирования
-        self._ha_version = hass.config.version
+        self._ha_version = getattr(hass.config, "version", "unknown")
 
     @property
     def is_on(self):

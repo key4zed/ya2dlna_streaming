@@ -17,7 +17,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = entry.data
 
     # Log Home Assistant version for debugging
-    ha_version = hass.config.version
+    ha_version = getattr(hass.config, "version", "unknown")
     _LOGGER.info(
         f"Setting up Ya2DLNA integration (Home Assistant {ha_version})"
     )

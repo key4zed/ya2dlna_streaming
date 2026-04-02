@@ -46,7 +46,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step: choose authentication method."""
-        ha_version = self.hass.config.version
+        ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Config flow step 'user' (Home Assistant {ha_version})")
         errors = {}
         if user_input is not None:
@@ -81,7 +81,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_yandex_station(self, user_input=None):
         """Handle selection of Yandex Station integration."""
-        ha_version = self.hass.config.version
+        ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Config flow step 'yandex_station' (Home Assistant {ha_version})")
         errors = {}
         if user_input is not None:
@@ -127,7 +127,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_cookies(self, user_input=None):
         """Handle input of cookies."""
-        ha_version = self.hass.config.version
+        ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Config flow step 'cookies' (Home Assistant {ha_version})")
         errors = {}
         description_placeholders = {}
@@ -158,7 +158,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_token(self, user_input=None):
         """Handle input of x-token."""
-        ha_version = self.hass.config.version
+        ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Config flow step 'token' (Home Assistant {ha_version})")
         errors = {}
         if user_input is not None:
@@ -184,7 +184,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_config(self, user_input=None):
         """Handle configuration of devices and API."""
-        ha_version = self.hass.config.version
+        ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Config flow step 'config' (Home Assistant {ha_version})")
         errors = {}
         if user_input is not None:
@@ -263,7 +263,7 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
-        ha_version = self.hass.config.version
+        ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Options flow step 'init' (Home Assistant {ha_version})")
         errors = {}
         if user_input is not None:
