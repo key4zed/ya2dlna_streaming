@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Literal, Optional
 import aiohttp
 import upnpclient
 
-from core.config.settings import settings
 from ruark_audio_system.constants import META_INFO
 
 SESSION_ID_REGEX = re.compile(r"<sessionId>(.*?)</sessionId>")
@@ -25,7 +24,7 @@ class DLNAController:
     def __init__(
             self,
             device_name: Optional[str] = None,
-            device: Optional[upnpclient.Device] = None
+            device: Optional[upnpclient.Device] = None,
     ) -> None:
         """
         Инициализация контроллера.
@@ -35,6 +34,7 @@ class DLNAController:
         """
         self.device_name = device_name
         self.device: Optional[upnpclient.Device] = device
+        self.ruark_pin: Optional[str] = None
         self.ip: Optional[str] = None
         self.services: Dict[str, Any] = {}
         self.av_transport = None
@@ -45,6 +45,10 @@ class DLNAController:
             self.refresh_device()
         elif self.device is not None:
             self._setup_services()
+
+    def set_ruark_pin(self, ruark_pin: Optional[str]) -> None:
+        """Установить PIN-код для устройств Ruark R5."""
+        self.ruark_pin = ruark_pin
 
     def refresh_device(self) -> None:
         """Обновление устройства по имени."""
@@ -448,26 +452,27 @@ class RuarkR5Controller(DLNAController):
     def __init__(
             self,
             device_name: str = "Ruark R5",
-            device: Optional[upnpclient.Device] = None
+            device: Optional[upnpclient.Device] = None,
     ) -> None:
         super().__init__(device_name=device_name, device=device)
         self.print_available_services()
 
     async def get_session_id(self) -> str:
         """Получение session_id (требует PIN)."""
-        if not settings.ruark_pin:
+        if not self.ruark_pin:
             logger.warning("⚠️ PIN не указан, невозможно получить session_id")
             return ""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"http://{self.ip}/fsapi/CREATE_SESSION/"
-                    f"?pin={settings.ruark_pin}"
+                    f"?pin={self.ruark_pin}"
                 ) as response:
                     content = await response.text()
-                    self._session_id = (
-                        SESSION_ID_REGEX.search(content).group(1)
-                    )
+                    match = SESSION_ID_REGEX.search(content)
+                    if not match:
+                        return ""
+                    self._session_id = match.group(1)
                     return self._session_id
         except Exception as e:
             logger.error(f"Ошибка при получении session_id: {e}")
@@ -475,18 +480,21 @@ class RuarkR5Controller(DLNAController):
 
     async def get_power_status(self) -> str:
         """Получение статуса питания (требует PIN и session_id)."""
-        if not settings.ruark_pin:
+        if not self.ruark_pin:
             logger.warning("⚠️ PIN не указан, невозможно получить статус питания")
             return ""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"http://{self.ip}/fsapi/GET/"
-                    f"netRemote.sys.power?pin={settings.ruark_pin}"
+                    f"netRemote.sys.power?pin={self.ruark_pin}"
                     f"&sid={self._session_id}"
                 ) as response:
                     content = await response.text()
-                    status = POWER_STATUS_REGEX.search(content).group(1)
+                    match = POWER_STATUS_REGEX.search(content)
+                    if not match:
+                        return ""
+                    status = match.group(1)
                     logger.info(f"🔌 Статус питания: {status}")
                     return status
         except Exception as e:
@@ -495,14 +503,14 @@ class RuarkR5Controller(DLNAController):
 
     async def turn_power_on(self) -> bool:
         """Включение питания (требует PIN и session_id)."""
-        if not settings.ruark_pin:
+        if not self.ruark_pin:
             logger.warning("⚠️ PIN не указан, невозможно включить питание")
             return False
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"http://{self.ip}/fsapi/SET/"
-                    f"netRemote.sys.power?pin={settings.ruark_pin}"
+                    f"netRemote.sys.power?pin={self.ruark_pin}"
                     f"&sid={self._session_id}&value=1"
                 ) as response:
                     if response.status == 200:
@@ -517,14 +525,14 @@ class RuarkR5Controller(DLNAController):
 
     async def turn_power_off(self) -> bool:
         """Выключение питания (требует PIN и session_id)."""
-        if not settings.ruark_pin:
+        if not self.ruark_pin:
             logger.warning("⚠️ PIN не указан, невозможно выключить питание")
             return False
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"http://{self.ip}/fsapi/SET/"
-                    f"netRemote.sys.power?pin={settings.ruark_pin}"
+                    f"netRemote.sys.power?pin={self.ruark_pin}"
                     f"&sid={self._session_id}&value=0"
                 ) as response:
                     if response.status == 200:

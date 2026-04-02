@@ -1,12 +1,11 @@
 from typing import Optional
-import asyncio
 import logging
 from injector import Module, provider, singleton
 from yandex_music import ClientAsync
 
 from core.config.settings import settings
 from core.device_manager import DeviceManager
-from dlna_stream_server.handlers.dlna_controller import DLNAController, RuarkR5Controller
+from dlna_stream_server.handlers.dlna_controller import DLNAController
 from dlna_stream_server.handlers.stream_handler import StreamHandler
 from main_stream_service.main_stream_manager import MainStreamManager
 from main_stream_service.yandex_music_api import YandexMusicAPI
@@ -14,7 +13,6 @@ from yandex_station.mdns_device_finder import DeviceFinder
 from yandex_station.protobuf_parser import Protobuf
 from yandex_station.station_controls import YandexStationControls
 from yandex_station.station_ws_control import YandexStationClient
-from core.authorization.yandex_tokens import get_music_token_via_x_token, AuthException
 
 logger = logging.getLogger(__name__)
 
@@ -97,26 +95,10 @@ class YandexMusicAPIModule(Module):
     @singleton
     @provider
     def provide_yandex_music_api(self) -> YandexMusicAPI:
-        ya_music_token = settings.ya_music_token
-        if not ya_music_token and settings.x_token and settings.x_token.strip():
-            # Попытаться получить ya_music_token через x_token
-            try:
-                # Создаём новый event loop, так как мы в синхронном контексте
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                ya_music_token = loop.run_until_complete(
-                    get_music_token_via_x_token(settings.x_token)
-                )
-                loop.close()
-                logger.info("✅ ya_music_token успешно получен через x_token")
-            except (AuthException, Exception) as e:
-                logger.error(f"❌ Не удалось получить ya_music_token через x_token: {e}")
-                ya_music_token = None
-        if not ya_music_token:
-            logger.warning("ya_music_token не указан, используется NullYandexMusicAPI")
-            return NullYandexMusicAPI()
-        client = ClientAsync(ya_music_token)
-        return YandexMusicAPI(client=client)
+        # Токен Яндекс.Музыки теперь передаётся только через API при запуске стриминга
+        # По умолчанию возвращаем NullYandexMusicAPI
+        logger.info("YandexMusicAPI: используется NullYandexMusicAPI (токен должен передаваться через API)")
+        return NullYandexMusicAPI()
 
 
 class DLNAControllerModule(Module):
@@ -128,12 +110,9 @@ class DLNAControllerModule(Module):
     ) -> DLNAController:
         # Используем имя устройства из настроек, если указано, иначе "DLNA Renderer"
         device_name = settings.dlna_device_name or "DLNA Renderer"
-        if settings.ruark_pin:
-            # Если указан PIN, используем RuarkR5Controller
-            return RuarkR5Controller(device_name=device_name)
-        else:
-            # Иначе используем универсальный DLNA‑контроллер
-            return DLNAController(device_name=device_name)
+        # PIN для Ruark R5 теперь передаётся только через API при запуске стриминга
+        # По умолчанию используем универсальный DLNA‑контроллер
+        return DLNAController(device_name=device_name)
 
 
 class StreamHandlerModule(Module):

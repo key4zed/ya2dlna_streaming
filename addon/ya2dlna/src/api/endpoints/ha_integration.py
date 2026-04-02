@@ -5,12 +5,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from core.config.settings import settings
 from core.dependencies.main_di_container import MainDIContainer
 from core.device_manager import DeviceManager
 from core.models.devices import (
     DeviceInfo,
-    DeviceType,
     DlnaRenderer,
     StreamingConfig,
     StreamingStatus,
@@ -202,21 +200,14 @@ async def start_streaming(
             status_code=400,
             detail="Не установлены активные источник и/или приёмник"
         )
-    # Обновляем настройки, если переданы токены
-    if x_token is not None:
-        settings.x_token = x_token
-        logger.info(f"✅ X‑Token обновлён (передан из интеграции) (HA {ha_version})")
-    if cookie is not None:
-        settings.cookie = cookie
-        logger.info(f"✅ Cookie обновлён (передан из интеграции) (HA {ha_version})")
-    if ruark_pin is not None:
-        settings.ruark_pin = ruark_pin
-        logger.info(f"✅ Ruark PIN обновлён (передан из интеграции) (HA {ha_version})")
-    if mute_yandex_station is not None:
-        settings.mute_yandex_station = mute_yandex_station
-        logger.info(f"✅ Mute Yandex Station обновлён: {mute_yandex_station} (HA {ha_version})")
-    # TODO: интегрировать с MainStreamManager для конкретных устройств
-    # Пока используем существующий менеджер (который работает с предопределёнными устройствами)
+    # Устанавливаем параметры стриминга
+    main_stream_manager.set_streaming_params(
+        x_token=x_token,
+        cookie=cookie,
+        ruark_pin=ruark_pin,
+        mute_yandex_station=mute_yandex_station if mute_yandex_station is not None else True,
+    )
+    # Запускаем стриминг
     asyncio.create_task(main_stream_manager.start())
     logger.info(f"Стриминг запущен (HA {ha_version})")
     return {"message": "Стриминг запущен"}

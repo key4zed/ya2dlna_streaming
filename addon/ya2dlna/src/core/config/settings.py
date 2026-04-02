@@ -27,22 +27,6 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
     )
 
-    # Yandex Music settings
-    ya_music_token: str = Field(
-        "",
-        description="Токен Яндекс.Музыки. Получить можно через OAuth. Если не указан, стриминг через Яндекс.Музыку будет недоступен.",
-    )
-
-    # Yandex Station авторизация (альтернатива ya_music_token)
-    x_token: Optional[str] = Field(
-        None,
-        description="X‑Token для авторизации Яндекс.Станции (опционально).",
-    )
-    cookie: Optional[str] = Field(
-        None,
-        description="Cookie для авторизации Яндекс.Станции (опционально).",
-    )
-
     # API server settings
     local_server_host: str = Field(
         "0.0.0.0",
@@ -59,12 +43,6 @@ class Settings(BaseSettings):
         ge=1,
         le=65535,
         description="Порт REST API (для управления).",
-    )
-
-    # Ruark R5 settings (опционально, требуется только для Ruark R5)
-    ruark_pin: Optional[str] = Field(
-        None,
-        description="PIN‑код для управления Ruark R5 (опционально). Если не указан, управление громкостью через PIN отключено.",
     )
 
     # DLNA device settings
@@ -88,12 +66,6 @@ class Settings(BaseSettings):
     stream_is_local_file: bool = Field(
         False,
         description="Скачивать треки локально перед стримингом (для отладки).",
-    )
-
-    # Mute Yandex Station during streaming
-    mute_yandex_station: bool = Field(
-        True,
-        description="Отключать звук на Яндекс Станции во время трансляции.",
     )
 
     # Yandex Music API settings
@@ -134,13 +106,6 @@ class Settings(BaseSettings):
     def validate_stream_quality(cls, v: Any) -> Any:
         if isinstance(v, str) and v.strip() == "":
             return "192"  # значение по умолчанию
-        return v
-
-    @field_validator("mute_yandex_station", mode="before")
-    @classmethod
-    def validate_mute_yandex_station(cls, v: Any) -> Any:
-        if isinstance(v, str) and v.strip() == "":
-            return True  # значение по умолчанию
         return v
 
     @field_validator("stream_is_local_file", mode="before")

@@ -1,4 +1,5 @@
 import asyncio
+import ipaddress
 from logging import getLogger
 from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass, field
@@ -61,12 +62,15 @@ class DeviceManager:
         device = self._yandex_finder.device
         stations = []
         if device:
+            host = device.get("host", "")
             station = YandexStation(
                 device_id=device.get("device_id", "unknown"),
                 name=f"Yandex Station {device.get('platform', 'unknown')}",
                 device_type=DeviceType.YANDEX_STATION,
-                host=device.get("host", ""),
+                host=host,
                 port=device.get("port", 0),
+                ip_address=host,  # Используем host как IP адрес
+                mac_addresses=[],  # MAC адреса Яндекс Станций пока не получаем
                 extra=device,
                 platform=device.get("platform", "unknown"),
             )
@@ -83,12 +87,15 @@ class DeviceManager:
         device = self._dlna_controller.device
         renderers = []
         if device:
+            ip_address = self._dlna_controller.ip or ""
             renderer = DlnaRenderer(
                 device_id=device.udn,
                 name=device.friendly_name,
                 device_type=DeviceType.DLNA_RENDERER,
-                host=self._dlna_controller.ip or "",
+                host=ip_address,
                 port=80,
+                ip_address=ip_address,
+                mac_addresses=[],  # MAC адреса DLNA устройств пока не получаем
                 extra={"location": device.location},
                 renderer_url=device.location,
                 friendly_name=device.friendly_name,
@@ -110,15 +117,20 @@ class DeviceManager:
         """Получить устройство по ID."""
         return self._devices.get(device_id)
 
-    def find_device_by_entity_id(self, entity_id: str) -> Optional[DeviceInfo]:
-        """Найти устройство по entity_id из Home Assistant."""
-        # entity_id имеет формат "domain.object_id", например "media_player.yandex_station_ultraviolet"
-        # или "media_player.am8_renderer"
-        # Попробуем извлечь object_id (часть после последней точки)
-        if "." not in entity_id:
-            return None
-        object_id = entity_id.split(".")[-1]
-        logger.debug(f"Поиск устройства по entity_id {entity_id}, object_id={object_id}")
+    def find_device_by_entity_id(
+        self,
+        entity_id: str,
+        ip_address: Optional[str] = None,
+        mac_addresses: Optional[List[str]] = None,
+        platform: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Optional[DeviceInfo]:
+        """Найти устройство по entity_id из Home Assistant с дополнительными данными.
+        
+        Поиск выполняется только по списку MAC адресов и IPv4 адресу.
+        Все другие методы поиска (по entity_id, object_id, имени и т.д.) удалены.
+        """
+        logger.debug(f"Поиск устройства по entity_id {entity_id}, IP={ip_address}, MAC={mac_addresses}")
         
         # 0. Логируем все доступные устройства для отладки
         if not self._devices:
@@ -126,82 +138,81 @@ class DeviceManager:
         else:
             logger.debug(f"Доступные устройства: {[d.name for d in self._devices.values()]}")
         
-        # 1. Прямое совпадение device_id == entity_id (на случай, если передали device_id)
-        if entity_id in self._devices:
-            logger.debug(f"Найдено прямое совпадение device_id: {entity_id}")
-            return self._devices[entity_id]
+        # Определяем тип устройства по entity_id (если можно) для ускорения поиска
+        device_type = None
+        if "yandex_station" in entity_id.lower() or "yandex" in entity_id.lower():
+            device_type = DeviceType.YANDEX_STATION
+        elif "dlna" in entity_id.lower() or "renderer" in entity_id.lower():
+            device_type = DeviceType.DLNA_RENDERER
         
-        # 2. Удаляем префикс "media_player." и пробуем найти по object_id
-        #    Например, "yandex_station_ultraviolet" -> "ultraviolet"
-        #    или "am8_renderer" -> "am8_renderer"
-        #    Убираем возможные префиксы "yandex_station_", "yandex_", "station_"
-        search_terms = [object_id]
-        if object_id.startswith("yandex_station_"):
-            search_terms.append(object_id.replace("yandex_station_", ""))
-        if object_id.startswith("yandex_"):
-            search_terms.append(object_id.replace("yandex_", ""))
-        if object_id.startswith("station_"):
-            search_terms.append(object_id.replace("station_", ""))
+        # 1. Поиск по MAC адресам (если предоставлены)
+        if mac_addresses:
+            device_by_mac = self._find_device_by_ip_mac(
+                ip_address=None,
+                mac_addresses=mac_addresses,
+                device_type=device_type,
+            )
+            if device_by_mac:
+                logger.debug(f"Найдено устройство по MAC адресу: {device_by_mac.name}")
+                return device_by_mac
         
-        # 3. Поиск по имени (name) - для Яндекс Станций name = "Yandex Station {platform}"
-        #    object_id может содержать platform (например, "ultraviolet")
-        for device in self._devices.values():
-            device_name_normalized = device.name.lower().replace(" ", "_")
-            
-            # Проверяем все варианты поиска
-            for term in search_terms:
-                if device_name_normalized == term:
-                    logger.debug(f"Найдено по имени: {device.name} (термин: {term})")
-                    return device
-                # Проверим, содержит ли term часть имени
-                if term in device_name_normalized:
-                    logger.debug(f"Найдено по части имени: {device.name} (термин: {term})")
-                    return device
+        # 2. Если MAC не найден, поиск по IPv4 адресу (если предоставлен и является IPv4)
+        if ip_address and self._is_ipv4(ip_address):
+            device_by_ip = self._find_device_by_ip_mac(
+                ip_address=ip_address,
+                mac_addresses=None,
+                device_type=device_type,
+            )
+            if device_by_ip:
+                logger.debug(f"Найдено устройство по IPv4 адресу: {device_by_ip.name}")
+                return device_by_ip
+        elif ip_address:
+            logger.debug(f"IP адрес {ip_address} не является IPv4, пропускаем поиск по IP")
         
-        # 4. Для Яндекс Станций: object_id может быть platform (например, "ultraviolet")
-        for device in self._devices.values():
-            if device.device_type == DeviceType.YANDEX_STATION:
-                platform = None
-                if isinstance(device, YandexStation):
-                    platform = device.platform
-                elif 'platform' in device.extra:
-                    platform = device.extra['platform']
-                if platform:
-                    platform_normalized = platform.lower()
-                    for term in search_terms:
-                        if platform_normalized == term:
-                            logger.debug(f"Найдено по platform: {platform} (термин: {term})")
-                            return device
-                        if term in platform_normalized:
-                            logger.debug(f"Найдено по части platform: {platform} (термин: {term})")
-                            return device
-        
-        # 5. Для DLNA: object_id может быть friendly_name (например, "AM8 Renderer")
-        for device in self._devices.values():
-            if device.device_type == DeviceType.DLNA_RENDERER:
-                friendly_name = None
-                if isinstance(device, DlnaRenderer):
-                    friendly_name = device.friendly_name
-                elif 'friendly_name' in device.extra:
-                    friendly_name = device.extra['friendly_name']
-                if friendly_name:
-                    friendly_name_normalized = friendly_name.lower().replace(" ", "_")
-                    for term in search_terms:
-                        if friendly_name_normalized == term:
-                            logger.debug(f"Найдено по friendly_name: {friendly_name} (термин: {term})")
-                            return device
-                        if term in friendly_name_normalized:
-                            logger.debug(f"Найдено по части friendly_name: {friendly_name} (термин: {term})")
-                            return device
-        
-        # 6. Дополнительно: поиск по hostname или IP
-        for device in self._devices.values():
-            if device.host and object_id in device.host:
-                logger.debug(f"Найдено по host: {device.host}")
-                return device
-        
-        logger.warning(f"Устройство с entity_id {entity_id} не найдено. Доступные устройства: {[(d.name, d.device_type.value) for d in self._devices.values()]}")
+        logger.warning(f"Устройство с entity_id {entity_id} не найдено по MAC или IPv4. Доступные устройства: {[(d.name, d.device_type.value) for d in self._devices.values()]}")
         return None
+
+    def _find_device_by_ip_mac(
+        self,
+        ip_address: Optional[str] = None,
+        mac_addresses: Optional[List[str]] = None,
+        device_type: Optional[DeviceType] = None,
+    ) -> Optional[DeviceInfo]:
+        """Найти устройство по IP и/или MAC адресу(ам)."""
+        if not ip_address and not mac_addresses:
+            return None
+        
+        for device in self._devices.values():
+            if device_type and device.device_type != device_type:
+                continue
+            
+            # Сравнение IP адреса (только IPv4)
+            if ip_address and device.ip_address:
+                # Проверяем, что IP адрес устройства является IPv4
+                if not self._is_ipv4(device.ip_address):
+                    continue
+                # Простое сравнение строк (может быть IPv4 или hostname)
+                if ip_address == device.ip_address:
+                    logger.debug(f"Найдено устройство по IP адресу: {device.name} (IP: {ip_address})")
+                    return device
+            
+            # Сравнение MAC адресов
+            if mac_addresses and device.mac_addresses:
+                for mac in mac_addresses:
+                    if mac in device.mac_addresses:
+                        logger.debug(f"Найдено устройство по MAC адресу: {device.name} (MAC: {mac})")
+                        return device
+        
+        logger.debug(f"Устройство по IP {ip_address} или MAC {mac_addresses} не найдено")
+        return None
+
+    def _is_ipv4(self, ip_str: str) -> bool:
+        """Проверить, является ли строка IPv4 адресом."""
+        try:
+            ipaddress.IPv4Address(ip_str)
+            return True
+        except (ipaddress.AddressValueError, ValueError):
+            return False
 
     def list_devices(self, device_type: Optional[DeviceType] = None) -> List[DeviceInfo]:
         """Список всех устройств, опционально отфильтрованный по типу."""
@@ -228,14 +239,17 @@ class DeviceManager:
         extra: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Установить активный источник звука с дополнительными данными."""
-        # Сначала попробуем найти устройство по device_id
-        device = self._devices.get(entity_id)
+        # Поиск устройства только по MAC и IPv4 адресам
+        device = self.find_device_by_entity_id(
+            entity_id=entity_id,
+            ip_address=ip_address,
+            mac_addresses=mac_addresses,
+            platform=platform,
+            extra=extra,
+        )
         if not device:
-            # Если не найдено, попробуем найти по entity_id с использованием дополнительных данных
-            device = self.find_device_by_entity_id(entity_id)
-            if not device:
-                logger.warning(f"Устройство {entity_id} не найдено.")
-                return False
+            logger.warning(f"Устройство {entity_id} не найдено по MAC или IPv4.")
+            return False
         
         if device.device_type != DeviceType.YANDEX_STATION:
             logger.warning(f"Устройство {entity_id} не является Яндекс Станцией.")
@@ -276,14 +290,17 @@ class DeviceManager:
         extra: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Установить активный приёмник звука с дополнительными данными."""
-        # Сначала попробуем найти устройство по device_id
-        device = self._devices.get(entity_id)
+        # Поиск устройства только по MAC и IPv4 адресам
+        device = self.find_device_by_entity_id(
+            entity_id=entity_id,
+            ip_address=ip_address,
+            mac_addresses=mac_addresses,
+            platform=None,
+            extra=extra,
+        )
         if not device:
-            # Если не найдено, попробуем найти по entity_id с использованием дополнительных данных
-            device = self.find_device_by_entity_id(entity_id)
-            if not device:
-                logger.warning(f"Устройство {entity_id} не найдено.")
-                return False
+            logger.warning(f"Устройство {entity_id} не найдено по MAC или IPv4.")
+            return False
         
         if device.device_type != DeviceType.DLNA_RENDERER:
             logger.warning(f"Устройство {entity_id} не является DLNA-рендерером.")

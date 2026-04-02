@@ -1,8 +1,9 @@
 import logging
+from typing import Optional
 
 import aiohttp
 
-from core.config.settings import settings
+from core.authorization.token_storage import token_storage
 
 logger = logging.getLogger(__name__)
 
@@ -39,19 +40,25 @@ async def get_music_token_via_x_token(x_token: str) -> str:
 
 async def get_device_token(device_id: str, platform: str) -> str:
     """Получить glagol токен для устройства, используя доступные методы авторизации."""
-    # Если заданы x_token и cookie, используем новый метод (пока не реализован)
-    # Пока что используем старый метод с ya_music_token, возможно полученным через x_token
-    ya_music_token = settings.ya_music_token
-    if not ya_music_token and hasattr(settings, 'x_token') and settings.x_token:
+    # Используем токены из хранилища
+    ya_music_token = token_storage.ya_music_token
+    x_token = token_storage.x_token
+    
+    # Если нет ya_music_token, но есть x_token, попробуем получить ya_music_token через x_token
+    if not ya_music_token and x_token:
         try:
-            ya_music_token = await get_music_token_via_x_token(settings.x_token)
+            ya_music_token = await get_music_token_via_x_token(x_token)
+            # Сохраняем полученный токен в хранилище
+            token_storage.ya_music_token = ya_music_token
         except AuthException as e:
             logger.error(f"Не удалось получить ya_music_token через x_token: {e}")
             # Продолжим без токена, что вызовет ошибку ниже
             pass
+    
     if not ya_music_token:
         logger.error("❌ Не указан ya_music_token и нет x_token для его автоматического получения")
-        raise AuthException("Не указан токен Яндекс.Музыки (ya_music_token)")
+        raise AuthException("Не указан токен Яндекс.Музыки (ya_music_token). "
+                          "Передайте x_token или ya_music_token через API.")
 
     url = "https://quasar.yandex.net/glagol/token"
     params = {"device_id": device_id, "platform": platform}

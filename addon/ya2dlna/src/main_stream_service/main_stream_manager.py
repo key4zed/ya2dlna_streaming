@@ -5,6 +5,7 @@ from typing import Optional
 import aiohttp
 from injector import inject
 
+from core.authorization.token_storage import token_storage
 from core.config.settings import settings
 from core.device_manager import DeviceManager, DeviceEvent, DeviceEventType
 from dlna_stream_server.handlers.dlna_controller import DLNAController
@@ -43,12 +44,44 @@ class MainStreamManager:
         self._stream_state_running = False
         self._tasks: list[asyncio.Task] = []
         self._device_monitoring_task: Optional[asyncio.Task] = None
+        # Параметры стриминга, передаваемые через API
+        self._current_x_token: Optional[str] = None
+        self._current_cookie: Optional[str] = None
+        self._current_ruark_pin: Optional[str] = None
+        self._current_mute_yandex_station: bool = True
         # Подписываемся на события устройств
         self._device_manager.add_callback(self._handle_device_event)
 
     def get_status(self) -> str:
         """Получить текущий статус стриминга."""
         return "streaming" if self._stream_state_running else "idle"
+
+    def set_streaming_params(
+        self,
+        x_token: Optional[str] = None,
+        cookie: Optional[str] = None,
+        ruark_pin: Optional[str] = None,
+        mute_yandex_station: bool = True,
+    ) -> None:
+        """Установить параметры стриминга, переданные через API."""
+        self._current_x_token = x_token
+        self._current_cookie = cookie
+        self._current_ruark_pin = ruark_pin
+        self._current_mute_yandex_station = mute_yandex_station
+        
+        # Сохраняем токены в глобальное хранилище для использования в других модулях
+        if x_token is not None:
+            token_storage.x_token = x_token
+        if cookie is not None:
+            token_storage.cookie = cookie
+        
+        # Устанавливаем PIN в DLNA контроллере
+        if hasattr(self._dlna_controls, 'set_ruark_pin'):
+            self._dlna_controls.set_ruark_pin(ruark_pin)
+        
+        logger.info(f"Параметры стриминга установлены: x_token={'***' if x_token else None}, "
+                   f"cookie={'***' if cookie else None}, ruark_pin={'***' if ruark_pin else None}, "
+                   f"mute_yandex_station={mute_yandex_station}")
 
     def _handle_device_event(self, event: DeviceEvent) -> None:
         """Обработчик событий устройств."""
@@ -276,7 +309,7 @@ class MainStreamManager:
                         for _ in range(30):
                             if await self._dlna_controls.is_playing():
                                 logger.info("▶️ DLNA‑устройство начало играть")
-                                if settings.mute_yandex_station:
+                                if self._current_mute_yandex_station:
                                     await self._station_controls.fade_out_alice_volume()
                                 speak_count = 0
                                 break
@@ -305,7 +338,7 @@ class MainStreamManager:
                         )
                         or (track.type == "FmRadio" and track.playing)
                     ) and track.playing:
-                        if settings.mute_yandex_station:
+                        if self._current_mute_yandex_station:
                             await self._station_controls.fade_out_alice_volume()
 
                     volume_set_count = 0
