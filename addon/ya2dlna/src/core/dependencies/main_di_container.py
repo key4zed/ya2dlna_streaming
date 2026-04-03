@@ -21,10 +21,10 @@ class MainDIContainer:
         YandexStationControlsModule,
         DLNAControllerModule,
         YandexMusicAPIModule,
+        DeviceFinderModule,
+        DeviceManagerModule,
         MainStreamManagerModule,
         StreamHandlerModule,
-        DeviceFinderModule,
-        DeviceManagerModule
     ]
 
     def __new__(cls, additional_modules: list[Module] = None):
