@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -45,40 +45,17 @@ class Settings(BaseSettings):
         description="Порт REST API (для управления).",
     )
 
-    # DLNA device settings
-    dlna_device_name: Optional[str] = Field(
-        None,
-        description="Имя DLNA‑устройства для поиска (например, 'DLNA Renderer'). Если не указано, будет использовано первое найденное устройство.",
-    )
-
     # Mode settings
     debug: bool = Field(
         False,
         description="Включить отладочное логирование.",
     )
 
-    # Stream settings
-    stream_quality: str = Field(
-        "192",
-        pattern=r"^(128|192|320)$",
-        description="Качество аудиопотока в кбит/с (128, 192 или 320).",
-    )
-    stream_is_local_file: bool = Field(
-        False,
-        description="Скачивать треки локально перед стримингом (для отладки).",
-    )
-
-    # Yandex Music API settings
-    yandex_music_timeout: int = Field(
-        15,
-        ge=1,
-        description="Таймаут запросов к API Яндекс.Музыки (в секундах).",
-    )
-    yandex_music_cache_ttl: int = Field(
-        300,
-        ge=0,
-        description="Время жизни кэша треков (в секундах).",
-    )
+    # Фиксированные параметры (не настраиваются через конфигурацию аддона)
+    # stream_quality: str = "192"  # Качество аудиопотока в кбит/с (128, 192 или 320)
+    # stream_is_local_file: bool = False  # Скачивать треки локально перед стримингом (для отладки)
+    # yandex_music_timeout: int = 15  # Таймаут запросов к API Яндекс.Музыки (в секундах)
+    # yandex_music_cache_ttl: int = 300  # Время жизни кэша треков (в секундах)
 
     @field_validator("local_server_port_dlna", mode="before")
     @classmethod
@@ -101,29 +78,5 @@ class Settings(BaseSettings):
             return False  # значение по умолчанию
         return v
 
-    @field_validator("stream_quality", mode="before")
-    @classmethod
-    def validate_stream_quality(cls, v: Any) -> Any:
-        if isinstance(v, str) and v.strip() == "":
-            return "192"  # значение по умолчанию
-        return v
-
-    @field_validator("stream_is_local_file", mode="before")
-    @classmethod
-    def validate_stream_is_local_file(cls, v: Any) -> Any:
-        if isinstance(v, str) and v.strip() == "":
-            return False  # значение по умолчанию
-        return v
-
-    @field_validator("yandex_music_timeout", "yandex_music_cache_ttl", mode="before")
-    @classmethod
-    def validate_int_fields(cls, v: Any, info: ValidationInfo) -> Any:
-        if isinstance(v, str) and v.strip() == "":
-            # Для этих полей тоже есть значения по умолчанию
-            if info.field_name == "yandex_music_timeout":
-                return 15
-            elif info.field_name == "yandex_music_cache_ttl":
-                return 300
-        return v
 
 settings = Settings()

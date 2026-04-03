@@ -16,25 +16,13 @@ map:
   - config:rw
 logo: "logo.png"
 options:
-  local_server_host: "0.0.0.0"
   local_server_port_dlna: 8001
   local_server_port_api: 8000
-  dlna_device_name: ""
-  stream_quality: "192"
-  stream_is_local_file: false
   debug: false
-  yandex_music_timeout: 15
-  yandex_music_cache_ttl: 300
 schema:
-  local_server_host: str
   local_server_port_dlna: int
   local_server_port_api: int
-  dlna_device_name: str
-  stream_quality: str
-  stream_is_local_file: bool
   debug: bool
-  yandex_music_timeout: int
-  yandex_music_cache_ttl: int
 
 build_from:
   aarch64: ghcr.io/home-assistant/aarch64-base:latest
