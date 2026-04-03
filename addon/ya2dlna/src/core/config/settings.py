@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from pydantic import Field, ValidationInfo, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -52,10 +52,11 @@ class Settings(BaseSettings):
     )
 
     # Фиксированные параметры (не настраиваются через конфигурацию аддона)
-    # stream_quality: str = "192"  # Качество аудиопотока в кбит/с (128, 192 или 320)
-    # stream_is_local_file: bool = False  # Скачивать треки локально перед стримингом (для отладки)
-    # yandex_music_timeout: int = 15  # Таймаут запросов к API Яндекс.Музыки (в секундах)
-    # yandex_music_cache_ttl: int = 300  # Время жизни кэша треков (в секундах)
+    stream_quality: str = "192"  # Качество аудиопотока в кбит/с (128, 192 или 320)
+    stream_is_local_file: bool = False  # Скачивать треки локально перед стримингом (для отладки)
+    yandex_music_timeout: int = 15  # Таймаут запросов к API Яндекс.Музыки (в секундах)
+    yandex_music_cache_ttl: int = 300  # Время жизни кэша треков (в секундах)
+    dlna_device_name: str = ""  # Имя DLNA устройства (если пустое, используется "DLNA Renderer")
 
     @field_validator("local_server_port_dlna", mode="before")
     @classmethod

@@ -76,24 +76,38 @@ def get_current_settings() -> AppSettings:
 @router.get("", response_model=AppSettings)
 async def get_settings():
     """Получить текущие настройки."""
-    return get_current_settings()
+    try:
+        return get_current_settings()
+    except Exception as e:
+        logger.error(f"Ошибка при получении настроек: {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {e}")
 
 
 @router.post("", response_model=AppSettings)
 async def update_settings(new_settings: AppSettings):
     """Обновить настройки."""
-    # Сохраняем в файл
-    save_settings_to_file(new_settings.model_dump())
-    # Применяем настройки к текущему экземпляру Settings (перезагружаем)
-    # Для этого нужно пересоздать объект Settings с учетом новых значений.
-    # Однако глобальный объект settings уже создан. Вместо этого можно
-    # обновить переменные окружения или перезапустить приложение.
-    # Пока просто сохраняем в файл, а при следующем запуске настройки загрузятся.
-    logger.info("Настройки обновлены через API")
-    return new_settings
+    try:
+        # Сохраняем в файл
+        save_settings_to_file(new_settings.model_dump())
+        # Применяем настройки к текущему экземпляру Settings (перезагружаем)
+        # Для этого нужно пересоздать объект Settings с учетом новых значений.
+        # Однако глобальный объект settings уже создан. Вместо этого можно
+        # обновить переменные окружения или перезапустить приложение.
+        # Пока просто сохраняем в файл, а при следующем запуске настройки загрузятся.
+        logger.info("Настройки обновлены через API")
+        return new_settings
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении настроек: {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {e}")
 
 
 @router.get("/schema")
 async def get_settings_schema():
     """Получить JSON-схему настроек."""
-    return AppSettings.model_json_schema()
+    try:
+        return AppSettings.model_json_schema()
+    except Exception as e:
+        logger.error(f"Ошибка при получении схемы настроек: {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {e}")

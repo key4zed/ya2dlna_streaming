@@ -50,9 +50,13 @@ async def list_devices(request: Request):
     """Получить список всех обнаруженных устройств."""
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Запрос списка всех устройств (HA {ha_version})")
-    devices = await device_manager.discover_all()
-    logger.info(f"Найдено {len(devices)} устройств (HA {ha_version})")
-    return list(devices.values())
+    try:
+        devices = await device_manager.discover_all()
+        logger.info(f"Найдено {len(devices)} устройств (HA {ha_version})")
+        return list(devices.values())
+    except Exception as e:
+        logger.error(f"Ошибка при получении списка устройств (HA {ha_version}): {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {e}")
 
 
 @router.get("/devices/yandex", response_model=List[YandexStation])
@@ -60,9 +64,13 @@ async def list_yandex_stations(request: Request):
     """Получить список Яндекс Станций."""
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Запрос списка Яндекс Станций (HA {ha_version})")
-    stations = await device_manager.discover_yandex_stations()
-    logger.info(f"Найдено {len(stations)} Яндекс Станций (HA {ha_version})")
-    return stations
+    try:
+        stations = await device_manager.discover_yandex_stations()
+        logger.info(f"Найдено {len(stations)} Яндекс Станций (HA {ha_version})")
+        return stations
+    except Exception as e:
+        logger.error(f"Ошибка при получении списка Яндекс Станций (HA {ha_version}): {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {e}")
 
 
 @router.get("/devices/dlna", response_model=List[DlnaRenderer])
@@ -70,9 +78,13 @@ async def list_dlna_renderers(request: Request):
     """Получить список DLNA-устройств."""
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Запрос списка DLNA-устройств (HA {ha_version})")
-    renderers = await device_manager.discover_dlna_renderers()
-    logger.info(f"Найдено {len(renderers)} DLNA-устройств (HA {ha_version})")
-    return renderers
+    try:
+        renderers = await device_manager.discover_dlna_renderers()
+        logger.info(f"Найдено {len(renderers)} DLNA-устройств (HA {ha_version})")
+        return renderers
+    except Exception as e:
+        logger.error(f"Ошибка при получении списка DLNA-устройств (HA {ha_version}): {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {e}")
 
 
 @router.post("/source/{device_id}")
@@ -100,22 +112,28 @@ async def set_source(
         extra = None
         logger.info(f"Установка источника через path: {device_id} (HA {ha_version})")
     
-    # Принудительно обновляем список устройств перед поиском
-    await device_manager.discover_all()
-    
-    # Используем улучшенный метод set_active_source_with_details
-    success = device_manager.set_active_source_with_details(
-        entity_id=entity_id,
-        ip_address=ip_address,
-        mac_addresses=mac_addresses,
-        platform=platform,
-        extra=extra,
-    )
-    if not success:
-        logger.warning(f"Устройство {entity_id} не найдено или не является Яндекс Станцией (HA {ha_version})")
-        raise HTTPException(status_code=404, detail="Устройство не найдено или не является Яндекс Станцией")
-    logger.info(f"Источник установлен: {entity_id} (HA {ha_version})")
-    return {"message": f"Источник установлен: {entity_id}"}
+    try:
+        # Принудительно обновляем список устройств перед поиском
+        await device_manager.discover_all()
+        
+        # Используем улучшенный метод set_active_source_with_details
+        success = device_manager.set_active_source_with_details(
+            entity_id=entity_id,
+            ip_address=ip_address,
+            mac_addresses=mac_addresses,
+            platform=platform,
+            extra=extra,
+        )
+        if not success:
+            logger.warning(f"Устройство {entity_id} не найдено или не является Яндекс Станцией (HA {ha_version})")
+            raise HTTPException(status_code=404, detail="Устройство не найдено или не является Яндекс Станцией")
+        logger.info(f"Источник установлен: {entity_id} (HA {ha_version})")
+        return {"message": f"Источник установлен: {entity_id}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при установке источника (HA {ha_version}): {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {e}")
 
 
 @router.post("/target/{device_id}")
@@ -145,23 +163,29 @@ async def set_target(
         extra = None
         logger.info(f"Установка приёмника через path: {device_id} (HA {ha_version})")
     
-    # Принудительно обновляем список устройств перед поиском
-    await device_manager.discover_all()
-    
-    # Используем улучшенный метод set_active_target_with_details
-    success = device_manager.set_active_target_with_details(
-        entity_id=entity_id,
-        ip_address=ip_address,
-        mac_addresses=mac_addresses,
-        friendly_name=friendly_name,
-        renderer_url=renderer_url,
-        extra=extra,
-    )
-    if not success:
-        logger.warning(f"Устройство {entity_id} не найдено или не является DLNA-рендерером (HA {ha_version})")
-        raise HTTPException(status_code=404, detail="Устройство не найдено или не является DLNA-рендерером")
-    logger.info(f"Приёмник установлен: {entity_id} (HA {ha_version})")
-    return {"message": f"Приёмник установлен: {entity_id}"}
+    try:
+        # Принудительно обновляем список устройств перед поиском
+        await device_manager.discover_all()
+        
+        # Используем улучшенный метод set_active_target_with_details
+        success = device_manager.set_active_target_with_details(
+            entity_id=entity_id,
+            ip_address=ip_address,
+            mac_addresses=mac_addresses,
+            friendly_name=friendly_name,
+            renderer_url=renderer_url,
+            extra=extra,
+        )
+        if not success:
+            logger.warning(f"Устройство {entity_id} не найдено или не является DLNA-рендерером (HA {ha_version})")
+            raise HTTPException(status_code=404, detail="Устройство не найдено или не является DLNA-рендерером")
+        logger.info(f"Приёмник установлен: {entity_id} (HA {ha_version})")
+        return {"message": f"Приёмник установлен: {entity_id}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при установке приёмника (HA {ha_version}): {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {e}")
 
 
 @router.get("/config", response_model=StreamingConfig)
@@ -169,16 +193,20 @@ async def get_config(request: Request):
     """Получить текущую конфигурацию стриминга."""
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Запрос конфигурации стриминга (HA {ha_version})")
-    source = device_manager.get_active_source()
-    target = device_manager.get_active_target()
-    logger.info(f"Активный источник: {source.device_id if source else 'нет'}, приёмник: {target.device_id if target else 'нет'} (HA {ha_version})")
-    return StreamingConfig(
-        source_device_id=source.device_id if source else "",
-        target_device_id=target.device_id if target else "",
-        mute_source=True,  # по умолчанию
-        enabled=False,  # TODO: определить состояние стриминга
-        current_status=StreamingStatus.IDLE,
-    )
+    try:
+        source = device_manager.get_active_source()
+        target = device_manager.get_active_target()
+        logger.info(f"Активный источник: {source.device_id if source else 'нет'}, приёмник: {target.device_id if target else 'нет'} (HA {ha_version})")
+        return StreamingConfig(
+            source_device_id=source.device_id if source else "",
+            target_device_id=target.device_id if target else "",
+            mute_source=True,  # по умолчанию
+            enabled=False,  # TODO: определить состояние стриминга
+            current_status=StreamingStatus.IDLE,
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при получении конфигурации стриминга (HA {ha_version}): {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {e}")
 
 
 @router.post("/stream/start")
@@ -201,16 +229,20 @@ async def start_streaming(
             detail="Не установлены активные источник и/или приёмник"
         )
     # Устанавливаем параметры стриминга
-    main_stream_manager.set_streaming_params(
-        x_token=x_token,
-        cookie=cookie,
-        ruark_pin=ruark_pin,
-        mute_yandex_station=mute_yandex_station if mute_yandex_station is not None else True,
-    )
-    # Запускаем стриминг
-    asyncio.create_task(main_stream_manager.start())
-    logger.info(f"Стриминг запущен (HA {ha_version})")
-    return {"message": "Стриминг запущен"}
+    try:
+        main_stream_manager.set_streaming_params(
+            x_token=x_token,
+            cookie=cookie,
+            ruark_pin=ruark_pin,
+            mute_yandex_station=mute_yandex_station if mute_yandex_station is not None else True,
+        )
+        # Запускаем стриминг
+        asyncio.create_task(main_stream_manager.start())
+        logger.info(f"Стриминг запущен (HA {ha_version})")
+        return {"message": "Стриминг запущен"}
+    except Exception as e:
+        logger.error(f"Ошибка при запуске стриминга (HA {ha_version}): {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {e}")
 
 
 @router.post("/stream/stop")
@@ -218,9 +250,13 @@ async def stop_streaming(request: Request):
     """Остановить стриминг."""
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Остановка стриминга (HA {ha_version})")
-    await main_stream_manager.stop()
-    logger.info(f"Стриминг остановлен (HA {ha_version})")
-    return {"message": "Стриминг остановлен"}
+    try:
+        await main_stream_manager.stop()
+        logger.info(f"Стриминг остановлен (HA {ha_version})")
+        return {"message": "Стриминг остановлен"}
+    except Exception as e:
+        logger.error(f"Ошибка при остановке стриминга (HA {ha_version}): {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {e}")
 
 
 @router.get("/stream/status")
@@ -228,6 +264,10 @@ async def get_stream_status(request: Request):
     """Получить статус стриминга."""
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Запрос статуса стриминга (HA {ha_version})")
-    status = main_stream_manager.get_status()
-    logger.info(f"Статус стриминга: {status} (HA {ha_version})")
-    return {"status": status}
+    try:
+        status = main_stream_manager.get_status()
+        logger.info(f"Статус стриминга: {status} (HA {ha_version})")
+        return {"status": status}
+    except Exception as e:
+        logger.error(f"Ошибка при получении статуса стриминга (HA {ha_version}): {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {e}")
