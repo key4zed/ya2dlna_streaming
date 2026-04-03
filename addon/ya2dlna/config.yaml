@@ -1,5 +1,5 @@
 name: "Ya2DLNA Streaming"
-version: "1.0.9"
+version: "1.0.0"
 slug: "ya2dlna"
 description: "Stream audio from Yandex Station to DLNA device"
 arch:
