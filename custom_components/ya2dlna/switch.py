@@ -127,12 +127,28 @@ class Ya2DLNASwitch(SwitchEntity):
             _LOGGER.error(f"Ошибка при проверке доступности устройства {entity_id} (HA {self._ha_version}): {e}")
             return False
 
+    def _normalize_mac(self, mac: str) -> str:
+        """Нормализовать MAC-адрес: привести к нижнему регистру и удалить разделители."""
+        if not mac:
+            return mac
+        # Удаляем все не-шестнадцатеричные символы (двоеточия, тире, точки)
+        import re
+        mac_clean = re.sub(r'[^a-fA-F0-9]', '', mac)
+        # Приводим к нижнему регистру
+        mac_clean = mac_clean.lower()
+        # Можно вернуть в формате с двоеточиями, но для сравнения достаточно clean
+        return mac_clean
+
     async def _get_device_info(self, entity_id: str) -> dict:
         """Получить информацию об устройстве из Home Assistant для передачи в API."""
         try:
             state = self.hass.states.get(entity_id)
             if state is None:
+                _LOGGER.debug(f"Устройство {entity_id} не найдено в состоянии Home Assistant (HA {self._ha_version})")
                 return {}
+            
+            # Логируем все атрибуты устройства для отладки
+            _LOGGER.debug(f"Состояние устройства {entity_id}: state={state.state}, attributes={dict(state.attributes)}")
             
             # Определяем domain устройства
             domain = ""
@@ -149,42 +165,54 @@ class Ya2DLNASwitch(SwitchEntity):
                 "extra": {}
             }
             
+            _LOGGER.debug(f"Начинаем сбор информации об устройстве {entity_id} (domain: {domain}) (HA {self._ha_version})")
+            
             # Извлекаем IP адрес из атрибутов
             ip_address = None
             
             # Для Яндекс Станций: атрибут host или ip_address
             if domain == "media_player" and "yandex_station" in entity_id:
                 ip_address = state.attributes.get("host") or state.attributes.get("ip_address")
+                _LOGGER.debug(f"Яндекс Станция {entity_id}: host={state.attributes.get('host')}, ip_address={state.attributes.get('ip_address')} -> ip_address={ip_address}")
             # Для DLNA устройств: извлекаем из ssdp_location или host
             elif domain == "media_player" and ("dlna" in entity_id.lower() or state.attributes.get("ssdp_location")):
                 # Пробуем извлечь IP из ssdp_location (URL)
                 ssdp_location = state.attributes.get("ssdp_location")
+                _LOGGER.debug(f"DLNA устройство {entity_id}: ssdp_location={ssdp_location}")
                 if ssdp_location:
                     try:
                         from urllib.parse import urlparse
                         parsed = urlparse(ssdp_location)
                         if parsed.hostname:
                             ip_address = parsed.hostname
+                            _LOGGER.debug(f"Извлечён IP из ssdp_location: {ip_address}")
                             # Если это доменное имя, а не IP, оставляем как есть
                             # (add-on сам разрешит его)
-                    except Exception:
+                    except Exception as e:
+                        _LOGGER.debug(f"Ошибка при парсинге ssdp_location: {e}")
                         pass
                 if not ip_address:
                     ip_address = state.attributes.get("host") or state.attributes.get("ip_address")
+                    _LOGGER.debug(f"IP из host/ip_address атрибутов: {ip_address}")
             # Для других устройств
             else:
                 ip_address = state.attributes.get("host") or state.attributes.get("ip_address")
+                _LOGGER.debug(f"Другое устройство {entity_id}: host={state.attributes.get('host')}, ip_address={state.attributes.get('ip_address')} -> ip_address={ip_address}")
             
             if ip_address:
                 info["ip_address"] = ip_address
+                _LOGGER.debug(f"Установлен IP адрес для {entity_id}: {ip_address}")
             
             # Извлекаем MAC адрес(ы)
             mac_address = state.attributes.get("mac_address")
+            _LOGGER.debug(f"MAC адрес из атрибута mac_address для {entity_id}: {mac_address}")
             if mac_address:
                 if isinstance(mac_address, list):
-                    info["mac_addresses"] = mac_address
+                    info["mac_addresses"] = [self._normalize_mac(m) for m in mac_address]
+                    _LOGGER.debug(f"MAC адреса (список) после нормализации: {info['mac_addresses']}")
                 else:
-                    info["mac_addresses"] = [mac_address]
+                    info["mac_addresses"] = [self._normalize_mac(mac_address)]
+                    _LOGGER.debug(f"MAC адрес (строка) после нормализации: {info['mac_addresses']}")
             # Для DLNA устройств может быть два MAC адреса (Ethernet и Wi-Fi)
             # Проверяем дополнительные атрибуты
             elif domain == "media_player" and ("dlna" in entity_id.lower() or state.attributes.get("ssdp_location")):
@@ -193,12 +221,16 @@ class Ya2DLNASwitch(SwitchEntity):
                 for attr in ["mac_address_ethernet", "mac_address_wifi", "mac_address_wireless"]:
                     mac = state.attributes.get(attr)
                     if mac:
+                        _LOGGER.debug(f"Найден MAC адрес в атрибуте {attr}: {mac}")
                         if isinstance(mac, list):
-                            mac_addresses.extend(mac)
+                            mac_addresses.extend([self._normalize_mac(m) for m in mac])
                         else:
-                            mac_addresses.append(mac)
+                            mac_addresses.append(self._normalize_mac(mac))
                 if mac_addresses:
                     info["mac_addresses"] = list(set(mac_addresses))  # Убираем дубликаты
+                    _LOGGER.debug(f"MAC адреса после удаления дубликатов: {info['mac_addresses']}")
+                else:
+                    _LOGGER.debug(f"MAC адреса не найдены в дополнительных атрибутах для {entity_id}")
             
             # Платформа (для Яндекс Станций)
             platform = state.attributes.get("platform")
@@ -275,28 +307,36 @@ class Ya2DLNASwitch(SwitchEntity):
                 # Получить информацию об устройствах
                 source_info = await self._get_device_info(self._source_entity)
                 target_info = await self._get_device_info(self._target_entity)
+                _LOGGER.debug(f"Информация об источнике {self._source_entity}: {source_info}")
+                _LOGGER.debug(f"Информация о приёмнике {self._target_entity}: {target_info}")
                 
                 # Установить источник с передачей дополнительной информации
                 source_url = f"http://{self._api_host}:{self._api_port}/ha/source/{self._source_entity}"
-                _LOGGER.debug(f"Setting source via {source_url} with data: {source_info}")
+                _LOGGER.debug(f"Установка источника через {source_url} с данными: {source_info}")
                 resp = await session.post(
                     source_url,
                     json=source_info
                 )
+                _LOGGER.debug(f"Ответ от установки источника: статус {resp.status}, текст: {await resp.text() if resp.status != 200 else 'OK'}")
                 if resp.status not in (200, 201, 204):
-                    _LOGGER.warning(f"Failed to set source: {resp.status} (HA {self._ha_version})")
+                    _LOGGER.warning(f"Не удалось установить источник: {resp.status} (HA {self._ha_version})")
                     # Продолжаем, возможно устройство будет найдено другими методами
+                else:
+                    _LOGGER.debug(f"Источник успешно установлен")
                 
                 # Установить приёмник с передачей дополнительной информации
                 target_url = f"http://{self._api_host}:{self._api_port}/ha/target/{self._target_entity}"
-                _LOGGER.debug(f"Setting target via {target_url} with data: {target_info}")
+                _LOGGER.debug(f"Установка приёмника через {target_url} с данными: {target_info}")
                 resp = await session.post(
                     target_url,
                     json=target_info
                 )
+                _LOGGER.debug(f"Ответ от установки приёмника: статус {resp.status}, текст: {await resp.text() if resp.status != 200 else 'OK'}")
                 if resp.status not in (200, 201, 204):
-                    _LOGGER.warning(f"Failed to set target: {resp.status} (HA {self._ha_version})")
+                    _LOGGER.warning(f"Не удалось установить приёмник: {resp.status} (HA {self._ha_version})")
                     # Продолжаем, возможно устройство будет найдено другими методами
+                else:
+                    _LOGGER.debug(f"Приёмник успешно установлен")
                 
                 # Запустить стриминг с передачей x_token, cookie, ruark_pin и mute_yandex_station, если они есть
                 params = {}

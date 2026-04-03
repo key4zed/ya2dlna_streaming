@@ -66,6 +66,7 @@ class DeviceManager:
         stations = []
         if device:
             host = device.get("host", "")
+            logger.debug(f"Найдена Яндекс Станция: host={host}, device={device}")
             station = YandexStation(
                 device_id=device.get("device_id", "unknown"),
                 name=f"Yandex Station {device.get('platform', 'unknown')}",
@@ -79,6 +80,9 @@ class DeviceManager:
             )
             stations.append(station)
             self._devices[station.device_id] = station
+            logger.debug(f"Добавлена Яндекс Станция: {station.name} (ID: {station.device_id})")
+        else:
+            logger.debug("Яндекс Станции не найдены")
         logger.info(f"Найдено станций: {len(stations)}")
         return stations
 
@@ -185,6 +189,12 @@ class DeviceManager:
         if not ip_address and not mac_addresses:
             return None
         
+        # Нормализуем MAC-адреса для сравнения
+        normalized_mac_addresses = None
+        if mac_addresses:
+            normalized_mac_addresses = [self._normalize_mac(mac) for mac in mac_addresses if mac]
+            logger.debug(f"Нормализованные MAC-адреса для поиска: {normalized_mac_addresses} (исходные: {mac_addresses})")
+        
         for device in self._devices.values():
             if device_type and device.device_type != device_type:
                 continue
@@ -199,11 +209,14 @@ class DeviceManager:
                     logger.debug(f"Найдено устройство по IP адресу: {device.name} (IP: {ip_address})")
                     return device
             
-            # Сравнение MAC адресов
-            if mac_addresses and device.mac_addresses:
-                for mac in mac_addresses:
-                    if mac in device.mac_addresses:
-                        logger.debug(f"Найдено устройство по MAC адресу: {device.name} (MAC: {mac})")
+            # Сравнение MAC адресов с нормализацией
+            if normalized_mac_addresses and device.mac_addresses:
+                # Нормализуем MAC-адреса устройства
+                normalized_device_macs = [self._normalize_mac(mac) for mac in device.mac_addresses if mac]
+                logger.debug(f"Нормализованные MAC-адреса устройства {device.name}: {normalized_device_macs} (исходные: {device.mac_addresses})")
+                for normalized_mac in normalized_mac_addresses:
+                    if normalized_mac in normalized_device_macs:
+                        logger.debug(f"Найдено устройство по MAC адресу: {device.name} (MAC: {normalized_mac})")
                         return device
         
         logger.debug(f"Устройство по IP {ip_address} или MAC {mac_addresses} не найдено")
@@ -216,6 +229,15 @@ class DeviceManager:
             return True
         except (ipaddress.AddressValueError, ValueError):
             return False
+
+    def _normalize_mac(self, mac: str) -> str:
+        """Нормализовать MAC-адрес: привести к нижнему регистру и удалить разделители."""
+        if not mac:
+            return mac
+        import re
+        mac_clean = re.sub(r'[^a-fA-F0-9]', '', mac)
+        mac_clean = mac_clean.lower()
+        return mac_clean
 
     def list_devices(self, device_type: Optional[DeviceType] = None) -> List[DeviceInfo]:
         """Список всех устройств, опционально отфильтрованный по типу."""
@@ -262,7 +284,12 @@ class DeviceManager:
         if ip_address and not device.ip_address:
             device.ip_address = ip_address
         if mac_addresses and not device.mac_addresses:
-            device.mac_addresses = mac_addresses
+            # Фильтруем пустые MAC-адреса и нормализуем
+            filtered_macs = [mac for mac in mac_addresses if mac]
+            if filtered_macs:
+                normalized_macs = [self._normalize_mac(mac) for mac in filtered_macs]
+                device.mac_addresses = normalized_macs
+                logger.debug(f"Установлены MAC-адреса для источника {device.name}: {normalized_macs}")
         if platform and isinstance(device, YandexStation) and not device.platform:
             device.platform = platform
         if extra:
@@ -313,7 +340,12 @@ class DeviceManager:
         if ip_address and not device.ip_address:
             device.ip_address = ip_address
         if mac_addresses and not device.mac_addresses:
-            device.mac_addresses = mac_addresses
+            # Фильтруем пустые MAC-адреса и нормализуем
+            filtered_macs = [mac for mac in mac_addresses if mac]
+            if filtered_macs:
+                normalized_macs = [self._normalize_mac(mac) for mac in filtered_macs]
+                device.mac_addresses = normalized_macs
+                logger.debug(f"Установлены MAC-адреса для приёмника {device.name}: {normalized_macs}")
         if friendly_name and isinstance(device, DlnaRenderer) and not device.friendly_name:
             device.friendly_name = friendly_name
         if renderer_url and isinstance(device, DlnaRenderer) and not device.renderer_url:
