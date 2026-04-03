@@ -8,12 +8,13 @@ from .const import (
     DOMAIN,
     CONF_SOURCE_ENTITY,
     CONF_TARGET_ENTITY,
-    CONF_API_HOST,
     CONF_API_PORT,
     CONF_X_TOKEN,
     CONF_COOKIE,
     CONF_RUARK_PIN,
     CONF_MUTE_YANDEX_STATION,
+    DEFAULT_API_HOST,
+    DEFAULT_API_PORT,
     DEFAULT_MUTE_YANDEX_STATION,
 )
 
@@ -26,8 +27,9 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     def get_config(key, default=None):
         return config_entry.options.get(key, config_entry.data.get(key, default))
     
-    api_host = get_config(CONF_API_HOST, "localhost")
-    api_port = get_config(CONF_API_PORT, 8000)
+    # API host теперь фиксированное значение для аддона
+    api_host = DEFAULT_API_HOST
+    api_port = get_config(CONF_API_PORT, DEFAULT_API_PORT)
     source_entity = get_config(CONF_SOURCE_ENTITY)
     target_entity = get_config(CONF_TARGET_ENTITY)
     x_token = get_config(CONF_X_TOKEN, "")
@@ -67,7 +69,7 @@ class Ya2DLNASwitch(SwitchEntity):
     def __init__(self, hass, api_host, api_port, source_entity, target_entity, x_token, cookie, ruark_pin, mute_yandex_station, entry_id):
         """Initialize the switch."""
         self.hass = hass
-        self._api_host = api_host
+        self._api_host = DEFAULT_API_HOST  # Фиксированное значение для аддона
         self._api_port = api_port
         self._source_entity = source_entity
         self._target_entity = target_entity
@@ -358,8 +360,8 @@ class Ya2DLNASwitch(SwitchEntity):
             def get_config(key, default=None):
                 return entry.options.get(key, entry.data.get(key, default))
             
-            self._api_host = get_config(CONF_API_HOST, "localhost")
-            self._api_port = get_config(CONF_API_PORT, 8000)
+            # API host теперь фиксированное значение, не обновляем
+            self._api_port = get_config(CONF_API_PORT, DEFAULT_API_PORT)
             self._source_entity = get_config(CONF_SOURCE_ENTITY)
             self._target_entity = get_config(CONF_TARGET_ENTITY)
             self._x_token = get_config(CONF_X_TOKEN, "")
@@ -413,7 +415,7 @@ class Ya2DLNAMuteSwitch(SwitchEntity):
     def __init__(self, hass, api_host, api_port, entry_id, initial_mute_state):
         """Initialize the mute switch."""
         self.hass = hass
-        self._api_host = api_host
+        self._api_host = DEFAULT_API_HOST  # Фиксированное значение для аддона
         self._api_port = api_port
         self._entry_id = entry_id
         self._state = initial_mute_state  # True = mute включен (звук отключен), False = mute выключен (звук включен)
