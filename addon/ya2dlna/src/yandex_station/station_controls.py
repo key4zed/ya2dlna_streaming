@@ -102,17 +102,20 @@ class YandexStationControls:
             logger.error(f"❌ Ошибка при получении состояния Алиса: {e}")
             return None
 
-    async def get_player_status(self) -> bool:
+    async def get_player_status(self) -> Optional[Dict]:
         """Получение статуса плеера"""
         try:
             state = await self.get_current_state()
+            if not state:
+                logger.debug("Состояние станции отсутствует")
+                return None
             play_status = state.get("playing", {})
             player_state = state.get("playerState", {})
             player_state["playing"] = play_status
             return player_state
         except Exception as e:
             logger.error(f"❌ Ошибка при получении статуса плеера: {e}")
-            return False
+            return None
 
     async def get_current_track(self) -> Track | None:
         """Получение текущего трека"""
@@ -120,19 +123,31 @@ class YandexStationControls:
             player_state = await self.get_player_status()
             # logger.info(f"🎵 Состояние плеера: {player_state}") # TODO: remove
             if player_state:
+                # Преобразуем duration и progress в int, защищаясь от None
+                duration_raw = player_state.get("duration")
+                progress_raw = player_state.get("progress")
+                try:
+                    duration = int(duration_raw) if duration_raw is not None else 0
+                except (ValueError, TypeError):
+                    duration = 0
+                try:
+                    progress = int(progress_raw) if progress_raw is not None else 0
+                except (ValueError, TypeError):
+                    progress = 0
                 return Track(
                     id=player_state.get("id", 0),
                     title=player_state.get("title", ""),
                     type=player_state.get("type", ""),
                     artist=player_state.get("subtitle", ""),
-                    duration=player_state.get("duration", 0),
-                    progress=player_state.get("progress", 0),
-                    playing=player_state.get("playing", False),
+                    duration=duration,
+                    progress=progress,
+                    playing=bool(player_state.get("playing", False)),
                 )
             else:
                 return None
         except Exception as e:
             logger.error(f"❌ Ошибка при получении текущего трека: {e}")
+            return None
 
     async def get_volume(self):
         """Получение текущего уровня громкости"""

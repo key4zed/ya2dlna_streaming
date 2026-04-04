@@ -226,9 +226,17 @@ class MainStreamManager:
                 track = await self._station_controls.get_current_track()
                 current_alice_state = await self._station_controls.get_alice_state()
 
+                # Если данные не получены, пропускаем цикл
+                if track is None or current_alice_state is None:
+                    logger.debug("Не удалось получить данные от станции, пропускаем цикл")
+                    await asyncio.sleep(1)
+                    continue
+
                 if current_alice_state != last_alice_state:
                     current_volume = await self._station_controls.get_volume()
-                    if (
+                    if current_volume is None:
+                        logger.debug("Не удалось получить громкость станции")
+                    elif (
                         current_alice_state in ALICE_ACTIVE_STATES
                         and volume_set_count < 1
                     ):
@@ -273,6 +281,9 @@ class MainStreamManager:
 
                     if track.id == last_track.id:
                         track = await self._station_controls.get_current_track()
+                        if track is None:
+                            logger.debug("Не удалось получить трек после обновления, пропускаем цикл")
+                            continue
 
                     if last_track.id != track.id and track.playing:
                         if track.type == "FmRadio":
