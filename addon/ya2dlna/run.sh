@@ -1,4 +1,4 @@
-л#!/bin/sh
+#!/bin/sh
 set -e
 
 echo "=== Starting run.sh ==="
