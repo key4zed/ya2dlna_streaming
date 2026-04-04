@@ -94,6 +94,8 @@ class DeviceManager:
         try:
             devices = upnpclient.discover()
             logger.info(f"Найдено {len(devices)} DLNA устройств в сети")
+            for i, d in enumerate(devices):
+                logger.debug(f"Устройство {i}: friendly_name={d.friendly_name}, udn={d.udn}, location={d.location}")
         except Exception as e:
             logger.error(f"Ошибка при обнаружении DLNA устройств: {e}")
             devices = []
@@ -103,6 +105,9 @@ class DeviceManager:
             try:
                 # Получаем IP адрес из location URL
                 location = device.location
+                if not location:
+                    logger.warning(f"У устройства {device.friendly_name} отсутствует location, пропускаем")
+                    continue
                 import urllib.parse
                 parsed = urllib.parse.urlparse(location)
                 ip_address = parsed.hostname if parsed.hostname else ""
@@ -121,9 +126,9 @@ class DeviceManager:
                 )
                 renderers.append(renderer)
                 self._devices[renderer.device_id] = renderer
-                logger.debug(f"Добавлено DLNA устройство: {device.friendly_name} ({device.udn})")
+                logger.info(f"Добавлено DLNA устройство: {device.friendly_name} ({device.udn})")
             except Exception as e:
-                logger.error(f"Ошибка при обработке DLNA устройства {device}: {e}")
+                logger.error(f"Ошибка при обработке DLNA устройства {device.friendly_name}: {e}", exc_info=True)
                 continue
         
         logger.info(f"Найдено DLNA-устройств: {len(renderers)}")
