@@ -89,26 +89,43 @@ class DeviceManager:
     async def discover_dlna_renderers(self) -> List[DlnaRenderer]:
         """Обнаружить DLNA-рендереры в сети."""
         logger.info("Поиск DLNA-устройств...")
-        # Используем существующий DLNAController для поиска устройств
-        self._dlna_controller.refresh_device()
-        device = self._dlna_controller.device
+        import upnpclient
+        
+        try:
+            devices = upnpclient.discover()
+            logger.info(f"Найдено {len(devices)} DLNA устройств в сети")
+        except Exception as e:
+            logger.error(f"Ошибка при обнаружении DLNA устройств: {e}")
+            devices = []
+        
         renderers = []
-        if device:
-            ip_address = self._dlna_controller.ip or ""
-            renderer = DlnaRenderer(
-                device_id=device.udn,
-                name=device.friendly_name,
-                device_type=DeviceType.DLNA_RENDERER,
-                host=ip_address,
-                port=80,
-                ip_address=ip_address,
-                mac_addresses=[],  # MAC адреса DLNA устройств пока не получаем
-                extra={"location": device.location},
-                renderer_url=device.location,
-                friendly_name=device.friendly_name,
-            )
-            renderers.append(renderer)
-            self._devices[renderer.device_id] = renderer
+        for device in devices:
+            try:
+                # Получаем IP адрес из location URL
+                location = device.location
+                import urllib.parse
+                parsed = urllib.parse.urlparse(location)
+                ip_address = parsed.hostname if parsed.hostname else ""
+                
+                renderer = DlnaRenderer(
+                    device_id=device.udn,
+                    name=device.friendly_name,
+                    device_type=DeviceType.DLNA_RENDERER,
+                    host=ip_address,
+                    port=parsed.port or 80,
+                    ip_address=ip_address,
+                    mac_addresses=[],  # MAC адреса DLNA устройств пока не получаем
+                    extra={"location": location},
+                    renderer_url=location,
+                    friendly_name=device.friendly_name,
+                )
+                renderers.append(renderer)
+                self._devices[renderer.device_id] = renderer
+                logger.debug(f"Добавлено DLNA устройство: {device.friendly_name} ({device.udn})")
+            except Exception as e:
+                logger.error(f"Ошибка при обработке DLNA устройства {device}: {e}")
+                continue
+        
         logger.info(f"Найдено DLNA-устройств: {len(renderers)}")
         return renderers
 

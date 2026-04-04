@@ -318,9 +318,10 @@ class Ya2DLNASwitch(SwitchEntity):
                     source_url,
                     json=source_info
                 )
-                _LOGGER.debug(f"Ответ от установки источника: статус {resp.status}, текст: {await resp.text() if resp.status != 200 else 'OK'}")
+                response_text = await resp.text()
+                _LOGGER.debug(f"Ответ от установки источника: статус {resp.status}, текст: {response_text if resp.status != 200 else 'OK'}")
                 if resp.status not in (200, 201, 204):
-                    _LOGGER.warning(f"Не удалось установить источник: {resp.status} (HA {self._ha_version})")
+                    _LOGGER.error(f"Не удалось установить источник: {resp.status} (HA {self._ha_version}). Ответ: {response_text}")
                     # Продолжаем, возможно устройство будет найдено другими методами
                 else:
                     _LOGGER.debug(f"Источник успешно установлен")
@@ -332,9 +333,10 @@ class Ya2DLNASwitch(SwitchEntity):
                     target_url,
                     json=target_info
                 )
-                _LOGGER.debug(f"Ответ от установки приёмника: статус {resp.status}, текст: {await resp.text() if resp.status != 200 else 'OK'}")
+                response_text = await resp.text()
+                _LOGGER.debug(f"Ответ от установки приёмника: статус {resp.status}, текст: {response_text if resp.status != 200 else 'OK'}")
                 if resp.status not in (200, 201, 204):
-                    _LOGGER.warning(f"Не удалось установить приёмник: {resp.status} (HA {self._ha_version})")
+                    _LOGGER.error(f"Не удалось установить приёмник: {resp.status} (HA {self._ha_version}). Ответ: {response_text}")
                     # Продолжаем, возможно устройство будет найдено другими методами
                 else:
                     _LOGGER.debug(f"Приёмник успешно установлен")
@@ -355,8 +357,9 @@ class Ya2DLNASwitch(SwitchEntity):
                     stream_url,
                     params=params if params else None,
                 )
+                response_text = await resp.text()
                 if resp.status not in (200, 201, 204):
-                    _LOGGER.warning(f"Failed to start streaming: {resp.status} (HA {self._ha_version})")
+                    _LOGGER.error(f"Failed to start streaming: {resp.status} (HA {self._ha_version}). Ответ: {response_text}")
                 else:
                     self._state = True
                     self.async_write_ha_state()
