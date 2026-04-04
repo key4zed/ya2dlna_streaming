@@ -1,4 +1,4 @@
-from src.core.logging.setup import setup_logging  # noqa
+from core.logging.setup import setup_logging  # noqa
 import ipaddress
 from logging import getLogger
 from time import sleep

@@ -1,14 +1,14 @@
 import sys
 sys.path.insert(0, '/app/src')
 
-from src.core.logging.setup import setup_logging  # noqa: F401
+from core.logging.setup import setup_logging  # noqa: F401
 from logging import getLogger
 
 import uvicorn
 from fastapi import FastAPI
 
 from api.endpoints.routers import main_router
-from src.core.config.settings import settings
+from core.config.settings import settings
 
 
 # setup_logging()

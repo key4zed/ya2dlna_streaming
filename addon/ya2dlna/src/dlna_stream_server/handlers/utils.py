@@ -5,7 +5,7 @@ from logging import getLogger
 import aiohttp
 from fastapi import Request
 
-from src.dlna_stream_server.handlers.constants import BASE_URL
+from dlna_stream_server.handlers.constants import BASE_URL
 
 logger = getLogger(__name__)
 
