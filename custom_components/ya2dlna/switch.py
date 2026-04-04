@@ -261,6 +261,11 @@ class Ya2DLNASwitch(SwitchEntity):
             if model:
                 extra["model"] = model
             
+            # Добавляем device_id если есть (для Яндекс Станций)
+            device_id = state.attributes.get("device_id") or state.attributes.get("unique_id")
+            if device_id:
+                extra["device_id"] = device_id
+            
             # Добавляем информацию о типе устройства
             if "yandex_station" in entity_id.lower() or platform:
                 extra["device_type"] = "yandex_station"

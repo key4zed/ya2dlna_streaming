@@ -209,10 +209,12 @@ class DeviceManager:
             if device_type == DeviceType.YANDEX_STATION:
                 device_id = extra.get("device_id")
                 if device_id:
-                    device = self.get_device(device_id)
-                    if device:
-                        logger.debug(f"Найдено устройство по device_id из extra: {device.name}")
-                        return device
+                    # Поиск без учёта регистра
+                    device_id_upper = device_id.upper()
+                    for dev in self._devices.values():
+                        if dev.device_id.upper() == device_id_upper:
+                            logger.debug(f"Найдено устройство по device_id из extra (без учёта регистра): {dev.name}")
+                            return dev
             
             # Для DLNA устройств: ищем по friendly_name из extra
             if device_type == DeviceType.DLNA_RENDERER:
@@ -231,10 +233,12 @@ class DeviceManager:
             if len(parts) > 1:
                 possible_device_id = parts[-1]
                 if len(possible_device_id) == 32:  # Длина device_id Яндекс Станции
-                    device = self.get_device(possible_device_id)
-                    if device:
-                        logger.debug(f"Найдено устройство по device_id из entity_id: {device.name}")
-                        return device
+                    # Поиск без учёта регистра
+                    possible_device_id_upper = possible_device_id.upper()
+                    for dev in self._devices.values():
+                        if dev.device_id.upper() == possible_device_id_upper:
+                            logger.debug(f"Найдено устройство по device_id из entity_id (без учёта регистра): {dev.name}")
+                            return dev
         
         # 5. Поиск по частичному совпадению имени
         device_by_name = self._find_device_by_partial_name(entity_id, device_type)
@@ -261,19 +265,25 @@ class DeviceManager:
             normalized_mac_addresses = [self._normalize_mac(mac) for mac in mac_addresses if mac]
             logger.debug(f"Нормализованные MAC-адреса для поиска: {normalized_mac_addresses} (исходные: {mac_addresses})")
         
+        logger.debug(f"Поиск устройства по IP {ip_address}, MAC {mac_addresses}, тип {device_type}. Всего устройств: {len(self._devices)}")
+        
         for device in self._devices.values():
             if device_type and device.device_type != device_type:
+                logger.debug(f"Пропускаем устройство {device.name} из-за несовпадения типа: {device.device_type} != {device_type}")
                 continue
             
             # Сравнение IP адреса (только IPv4)
             if ip_address and device.ip_address:
                 # Проверяем, что IP адрес устройства является IPv4
                 if not self._is_ipv4(device.ip_address):
+                    logger.debug(f"IP адрес устройства {device.name} не является IPv4: {device.ip_address}")
                     continue
                 # Простое сравнение строк (может быть IPv4 или hostname)
                 if ip_address == device.ip_address:
                     logger.debug(f"Найдено устройство по IP адресу: {device.name} (IP: {ip_address})")
                     return device
+                else:
+                    logger.debug(f"IP не совпадает: {ip_address} != {device.ip_address}")
             
             # Сравнение MAC адресов с нормализацией
             if normalized_mac_addresses and device.mac_addresses:
@@ -284,6 +294,8 @@ class DeviceManager:
                     if normalized_mac in normalized_device_macs:
                         logger.debug(f"Найдено устройство по MAC адресу: {device.name} (MAC: {normalized_mac})")
                         return device
+            elif normalized_mac_addresses:
+                logger.debug(f"У устройства {device.name} нет MAC-адресов")
         
         logger.debug(f"Устройство по IP {ip_address} или MAC {mac_addresses} не найдено")
         return None
@@ -315,6 +327,7 @@ class DeviceManager:
             return None
         
         logger.debug(f"Поиск устройства по friendly_name: {friendly_name}, тип: {device_type}")
+        friendly_name_upper = friendly_name.upper()
         
         for device in self._devices.values():
             if device_type and device.device_type != device_type:
@@ -322,17 +335,19 @@ class DeviceManager:
             
             # Для DLNA устройств проверяем friendly_name
             if isinstance(device, DlnaRenderer) and device.friendly_name:
+                device_friendly_upper = device.friendly_name.upper()
                 # Точное совпадение
-                if device.friendly_name == friendly_name:
+                if device_friendly_upper == friendly_name_upper:
                     logger.debug(f"Найдено устройство по точному совпадению friendly_name: {device.name}")
                     return device
                 # Частичное совпадение (содержит)
-                if friendly_name in device.friendly_name or device.friendly_name in friendly_name:
+                if friendly_name_upper in device_friendly_upper or device_friendly_upper in friendly_name_upper:
                     logger.debug(f"Найдено устройство по частичному совпадению friendly_name: {device.name}")
                     return device
             
             # Также проверяем имя устройства
-            if friendly_name in device.name or device.name in friendly_name:
+            device_name_upper = device.name.upper()
+            if friendly_name_upper in device_name_upper or device_name_upper in friendly_name_upper:
                 logger.debug(f"Найдено устройство по совпадению имени: {device.name}")
                 return device
         
