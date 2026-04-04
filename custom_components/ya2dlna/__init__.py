@@ -22,25 +22,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         f"Setting up Ya2DLNA integration (Home Assistant {ha_version})"
     )
 
-    # Forward setup to switch platform
+    # Forward setup to switch and select platforms
     # Try new method first, fallback to old for compatibility
+    platforms = ["switch", "select"]
     try:
-        await hass.config_entries.async_forward_entry_setups(entry, ["switch"])
+        await hass.config_entries.async_forward_entry_setups(entry, platforms)
     except AttributeError:
         # Fallback for older Home Assistant versions
         _LOGGER.warning(
             f"Home Assistant {ha_version} does not support async_forward_entry_setups, using old method"
         )
-        await hass.config_entries.async_forward_entry_setup(entry, "switch")
+        for platform in platforms:
+            await hass.config_entries.async_forward_entry_setup(entry, platform)
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    platforms = ["switch", "select"]
     # Try new method first, fallback to old for compatibility
     try:
-        await hass.config_entries.async_forward_entry_unloads(entry, ["switch"])
+        await hass.config_entries.async_forward_entry_unloads(entry, platforms)
     except AttributeError:
         # Fallback for older Home Assistant versions
-        await hass.config_entries.async_forward_entry_unload(entry, "switch")
+        for platform in platforms:
+            await hass.config_entries.async_forward_entry_unload(entry, platform)
     hass.data[DOMAIN].pop(entry.entry_id, None)
     return True

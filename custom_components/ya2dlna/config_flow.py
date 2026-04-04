@@ -1,5 +1,7 @@
 """Config flow for Ya2DLNA."""
+import asyncio
 import logging
+import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
@@ -15,6 +17,8 @@ from .const import (
     CONF_AUTH_METHOD,
     CONF_RUARK_PIN,
     CONF_MUTE_YANDEX_STATION,
+    CONF_TARGET_DEVICE_ID,
+    CONF_TARGET_FRIENDLY_NAME,
     DEFAULT_API_HOST,
     DEFAULT_API_PORT,
     DEFAULT_MUTE_YANDEX_STATION,
@@ -43,6 +47,34 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.target_entity = None
         self.api_host = DEFAULT_API_HOST
         self.api_port = DEFAULT_API_PORT
+        self.dlna_devices = None  # список кортежей (device_id, friendly_name)
+        self.target_device_id = None
+        self.target_friendly_name = None
+
+    async def _fetch_dlna_devices(self) -> list:
+        """Запросить список DLNA-устройств у аддона."""
+        url = f"http://{self.api_host}:{self.api_port}/ha/devices/dlna"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=10) as resp:
+                    if resp.status == 200:
+                        devices = await resp.json()
+                        # Преобразуем в список кортежей (device_id, friendly_name)
+                        result = []
+                        for dev in devices:
+                            device_id = dev.get("device_id")
+                            friendly_name = dev.get("friendly_name") or dev.get("name", "Unknown")
+                            result.append((device_id, friendly_name))
+                        return result
+                    else:
+                        _LOGGER.error(f"Ошибка при запросе устройств: {resp.status}")
+                        return []
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            _LOGGER.error(f"Не удалось подключиться к аддону: {e}")
+            return []
+        except Exception as e:
+            _LOGGER.error(f"Неизвестная ошибка: {e}")
+            return []
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step: choose authentication method."""
@@ -187,14 +219,36 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Config flow step 'config' (Home Assistant {ha_version})")
         errors = {}
+        
+        # Получить список DLNA-устройств от аддона
+        if self.dlna_devices is None:
+            self.dlna_devices = await self._fetch_dlna_devices()
+        
         if user_input is not None:
             # Сохраняем данные
             self.source_entity = user_input[CONF_SOURCE_ENTITY]
-            self.target_entity = user_input[CONF_TARGET_ENTITY]
             self.api_host = user_input.get(CONF_API_HOST, DEFAULT_API_HOST)
             self.api_port = user_input.get(CONF_API_PORT, DEFAULT_API_PORT)
             self.ruark_pin = user_input.get(CONF_RUARK_PIN, "")
             self.mute_yandex_station = user_input.get(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
+            
+            # Определяем выбранное DLNA-устройство
+            selected_device = user_input.get(CONF_TARGET_DEVICE_ID)
+            if selected_device and selected_device != "manual":
+                # Найти friendly_name по device_id
+                friendly_name = None
+                for device_id, name in self.dlna_devices:
+                    if device_id == selected_device:
+                        friendly_name = name
+                        break
+                self.target_device_id = selected_device
+                self.target_friendly_name = friendly_name or selected_device
+                self.target_entity = ""  # очищаем старый entity
+            else:
+                # Ручной ввод (запасной вариант)
+                self.target_entity = user_input.get(CONF_TARGET_ENTITY, "")
+                self.target_device_id = ""
+                self.target_friendly_name = ""
 
             # Создаём финальную запись
             data = {
@@ -203,6 +257,8 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_COOKIE: self.cookie,
                 CONF_SOURCE_ENTITY: self.source_entity,
                 CONF_TARGET_ENTITY: self.target_entity,
+                CONF_TARGET_DEVICE_ID: self.target_device_id,
+                CONF_TARGET_FRIENDLY_NAME: self.target_friendly_name,
                 CONF_API_HOST: self.api_host,
                 CONF_API_PORT: self.api_port,
                 CONF_RUARK_PIN: self.ruark_pin,
@@ -221,24 +277,34 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 multiple=False,
             )
         )
-        # Селектор для цели (DLNA-рендереры)
-        target_selector = selector.EntitySelector(
-            selector.EntitySelectorConfig(
-                filter=[
-                    {"domain": "media_player", "integration": "dlna_dmr"},
-                ],
-                multiple=False,
-            )
-        )
-
-        data_schema = vol.Schema({
+        
+        # Подготовить опции для выбора DLNA-устройств
+        device_options = []
+        if self.dlna_devices:
+            for device_id, friendly_name in self.dlna_devices:
+                device_options.append((device_id, friendly_name))
+        device_options.append(("manual", "Ввести entity_id вручную"))
+        
+        # Схема данных
+        fields = {
             vol.Required(CONF_SOURCE_ENTITY): source_selector,
-            vol.Required(CONF_TARGET_ENTITY): target_selector,
-            vol.Optional(CONF_API_HOST, default=DEFAULT_API_HOST): str,
             vol.Optional(CONF_API_PORT, default=self.api_port): int,
             vol.Optional(CONF_RUARK_PIN, default=""): str,
             vol.Optional(CONF_MUTE_YANDEX_STATION, default=DEFAULT_MUTE_YANDEX_STATION): bool,
-        })
+        }
+        
+        if device_options:
+            fields[vol.Required(CONF_TARGET_DEVICE_ID, default=device_options[0][0])] = vol.In(dict(device_options))
+        else:
+            # Если устройств нет, показываем только ручной ввод
+            fields[vol.Required(CONF_TARGET_ENTITY)] = str
+        
+        # Добавляем поле для ручного ввода entity_id (скрытое по умолчанию)
+        # Будем показывать только если выбрано "manual"
+        # Пока просто добавим как optional
+        fields[vol.Optional(CONF_TARGET_ENTITY, default="")] = str
+        
+        data_schema = vol.Schema(fields)
 
         return self.async_show_form(
             step_id="config",
@@ -260,25 +326,81 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry):
         """Initialize options flow."""
         self._ya2dlna_config_entry = config_entry
+        self.dlna_devices = None
         super().__init__()
+
+    async def _fetch_dlna_devices(self) -> list:
+        """Запросить список DLNA-устройств у аддона."""
+        # Получаем текущие настройки API
+        config_data = self._ya2dlna_config_entry.data
+        config_options = self._ya2dlna_config_entry.options
+        def get_value(key, default=None):
+            return config_options.get(key, config_data.get(key, default))
+        api_host = get_value(CONF_API_HOST, DEFAULT_API_HOST)
+        api_port = get_value(CONF_API_PORT, DEFAULT_API_PORT)
+        url = f"http://{api_host}:{api_port}/ha/devices/dlna"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=10) as resp:
+                    if resp.status == 200:
+                        devices = await resp.json()
+                        result = []
+                        for dev in devices:
+                            device_id = dev.get("device_id")
+                            friendly_name = dev.get("friendly_name") or dev.get("name", "Unknown")
+                            result.append((device_id, friendly_name))
+                        return result
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            _LOGGER.error(f"Не удалось подключиться к аддону: {e}")
+            return []
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
         ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Options flow step 'init' (Home Assistant {ha_version})")
         errors = {}
+        
+        # Получить список DLNA-устройств от аддона
+        if self.dlna_devices is None:
+            self.dlna_devices = await self._fetch_dlna_devices()
+        
         if user_input is not None:
-            # Проверим, что выбранные сущности существуют
-            source_entity = user_input.get(CONF_SOURCE_ENTITY)
-            target_entity = user_input.get(CONF_TARGET_ENTITY)
+            # Определяем выбранное DLNA-устройство
+            selected_device = user_input.get(CONF_TARGET_DEVICE_ID)
+            target_device_id = ""
+            target_friendly_name = ""
+            target_entity = ""
+            if selected_device and selected_device != "manual":
+                # Найти friendly_name по device_id
+                friendly_name = None
+                for device_id, name in self.dlna_devices:
+                    if device_id == selected_device:
+                        friendly_name = name
+                        break
+                target_device_id = selected_device
+                target_friendly_name = friendly_name or selected_device
+                target_entity = ""  # очищаем старый entity
+            else:
+                # Ручной ввод (запасной вариант)
+                target_entity = user_input.get(CONF_TARGET_ENTITY, "")
+                target_device_id = ""
+                target_friendly_name = ""
             
-            # Проверка доступности сущностей (опционально)
-            # Пока просто сохраняем
+            # Сохраняем данные
+            data = {
+                CONF_SOURCE_ENTITY: user_input.get(CONF_SOURCE_ENTITY),
+                CONF_TARGET_ENTITY: target_entity,
+                CONF_TARGET_DEVICE_ID: target_device_id,
+                CONF_TARGET_FRIENDLY_NAME: target_friendly_name,
+                CONF_API_HOST: user_input.get(CONF_API_HOST, DEFAULT_API_HOST),
+                CONF_API_PORT: user_input.get(CONF_API_PORT, DEFAULT_API_PORT),
+                CONF_RUARK_PIN: user_input.get(CONF_RUARK_PIN, ""),
+                CONF_MUTE_YANDEX_STATION: user_input.get(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION),
+            }
             _LOGGER.info(f"Updating options for Ya2DLNA (Home Assistant {ha_version})")
-            return self.async_create_entry(title="", data=user_input)
+            return self.async_create_entry(title="", data=data)
 
         # Получим текущие значения из data и options
-        # В Home Assistant options переопределяют data, поэтому используем get с объединением
         config_data = self._ya2dlna_config_entry.data
         config_options = self._ya2dlna_config_entry.options
         
@@ -288,6 +410,8 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
         
         current_source = get_value(CONF_SOURCE_ENTITY, "")
         current_target = get_value(CONF_TARGET_ENTITY, "")
+        current_target_device_id = get_value(CONF_TARGET_DEVICE_ID, "")
+        current_target_friendly_name = get_value(CONF_TARGET_FRIENDLY_NAME, "")
         current_api_host = get_value(CONF_API_HOST, DEFAULT_API_HOST)
         current_api_port = get_value(CONF_API_PORT, DEFAULT_API_PORT)
         current_ruark_pin = get_value(CONF_RUARK_PIN, "")
@@ -303,24 +427,40 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
                 multiple=False,
             )
         )
-        # Селектор для цели (DLNA-рендереры)
-        target_selector = selector.EntitySelector(
-            selector.EntitySelectorConfig(
-                filter=[
-                    {"domain": "media_player", "integration": "dlna_dmr"},
-                ],
-                multiple=False,
-            )
-        )
-
-        data_schema = vol.Schema({
+        
+        # Подготовить опции для выбора DLNA-устройств
+        device_options = []
+        if self.dlna_devices:
+            for device_id, friendly_name in self.dlna_devices:
+                device_options.append((device_id, friendly_name))
+        device_options.append(("manual", "Ввести entity_id вручную"))
+        
+        # Определяем текущее выбранное устройство
+        current_selected = "manual"
+        if current_target_device_id:
+            current_selected = current_target_device_id
+        elif current_target:
+            current_selected = "manual"
+        
+        # Схема данных
+        fields = {
             vol.Required(CONF_SOURCE_ENTITY, default=current_source): source_selector,
-            vol.Required(CONF_TARGET_ENTITY, default=current_target): target_selector,
-            vol.Optional(CONF_API_HOST, default=current_api_host): str,
             vol.Optional(CONF_API_PORT, default=current_api_port): int,
             vol.Optional(CONF_RUARK_PIN, default=current_ruark_pin): str,
             vol.Optional(CONF_MUTE_YANDEX_STATION, default=current_mute_yandex_station): bool,
-        })
+        }
+        
+        if device_options:
+            fields[vol.Required(CONF_TARGET_DEVICE_ID, default=current_selected)] = vol.In(dict(device_options))
+        else:
+            # Если устройств нет, показываем только ручной ввод
+            fields[vol.Required(CONF_TARGET_ENTITY, default=current_target)] = str
+        
+        # Добавляем поле для ручного ввода entity_id (скрытое по умолчанию)
+        # Пока просто добавим как optional
+        fields[vol.Optional(CONF_TARGET_ENTITY, default=current_target)] = str
+        
+        data_schema = vol.Schema(fields)
         return self.async_show_form(
             step_id="init",
             data_schema=data_schema,

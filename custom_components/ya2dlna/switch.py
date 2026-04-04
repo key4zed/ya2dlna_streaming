@@ -14,6 +14,8 @@ from .const import (
     CONF_COOKIE,
     CONF_RUARK_PIN,
     CONF_MUTE_YANDEX_STATION,
+    CONF_TARGET_DEVICE_ID,
+    CONF_TARGET_FRIENDLY_NAME,
     DEFAULT_API_HOST,
     DEFAULT_API_PORT,
     DEFAULT_MUTE_YANDEX_STATION,
@@ -33,6 +35,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     api_port = get_config(CONF_API_PORT, DEFAULT_API_PORT)
     source_entity = get_config(CONF_SOURCE_ENTITY)
     target_entity = get_config(CONF_TARGET_ENTITY)
+    target_device_id = get_config(CONF_TARGET_DEVICE_ID)
+    target_friendly_name = get_config(CONF_TARGET_FRIENDLY_NAME)
     x_token = get_config(CONF_X_TOKEN, "")
     cookie = get_config(CONF_COOKIE, "")
     ruark_pin = get_config(CONF_RUARK_PIN, "")
@@ -45,6 +49,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         api_port,
         source_entity,
         target_entity,
+        target_device_id,
+        target_friendly_name,
         x_token,
         cookie,
         ruark_pin,
@@ -67,13 +73,15 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class Ya2DLNASwitch(SwitchEntity):
     """Representation of a streaming switch."""
 
-    def __init__(self, hass, api_host, api_port, source_entity, target_entity, x_token, cookie, ruark_pin, mute_yandex_station, entry_id):
+    def __init__(self, hass, api_host, api_port, source_entity, target_entity, target_device_id, target_friendly_name, x_token, cookie, ruark_pin, mute_yandex_station, entry_id):
         """Initialize the switch."""
         self.hass = hass
         self._api_host = api_host  # Настраиваемый API хост
         self._api_port = api_port
         self._source_entity = source_entity
         self._target_entity = target_entity
+        self._target_device_id = target_device_id
+        self._target_friendly_name = target_friendly_name
         self._x_token = x_token
         self._cookie = cookie
         self._ruark_pin = ruark_pin
@@ -332,7 +340,22 @@ class Ya2DLNASwitch(SwitchEntity):
                     _LOGGER.debug(f"Источник успешно установлен")
                 
                 # Установить приёмник с передачей дополнительной информации
-                target_url = f"http://{self._api_host}:{self._api_port}/ha/target/{self._target_entity}"
+                # Если задан target_device_id, используем его, иначе target_entity
+                if self._target_device_id:
+                    device_id = self._target_device_id
+                    # Создаём информацию об устройстве на основе сохранённых данных
+                    target_info = {
+                        "device_id": device_id,
+                        "friendly_name": self._target_friendly_name or "",
+                        "extra": {
+                            "device_type": "dlna_renderer",
+                            "source": "ha_integration"
+                        }
+                    }
+                    target_url = f"http://{self._api_host}:{self._api_port}/ha/target/{device_id}"
+                else:
+                    device_id = self._target_entity
+                    target_url = f"http://{self._api_host}:{self._api_port}/ha/target/{device_id}"
                 _LOGGER.debug(f"Установка приёмника через {target_url} с данными: {target_info}")
                 resp = await session.post(
                     target_url,
@@ -414,12 +437,14 @@ class Ya2DLNASwitch(SwitchEntity):
             self._api_port = get_config(CONF_API_PORT, DEFAULT_API_PORT)
             self._source_entity = get_config(CONF_SOURCE_ENTITY)
             self._target_entity = get_config(CONF_TARGET_ENTITY)
+            self._target_device_id = get_config(CONF_TARGET_DEVICE_ID)
+            self._target_friendly_name = get_config(CONF_TARGET_FRIENDLY_NAME)
             self._x_token = get_config(CONF_X_TOKEN, "")
             self._cookie = get_config(CONF_COOKIE, "")
             self._ruark_pin = get_config(CONF_RUARK_PIN, "")
             self._mute_yandex_station = get_config(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
             
-            _LOGGER.debug(f"Конфигурация переключателя обновлена: source={self._source_entity}, target={self._target_entity}")
+            _LOGGER.debug(f"Конфигурация переключателя обновлена: source={self._source_entity}, target={self._target_entity}, target_device_id={self._target_device_id}")
         except Exception as e:
             _LOGGER.error(f"Ошибка при обновлении конфигурации из записи: {e}")
 
