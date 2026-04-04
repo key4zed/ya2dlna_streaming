@@ -6,6 +6,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 from .const import (
     DOMAIN,
+    CONF_API_HOST,
     CONF_SOURCE_ENTITY,
     CONF_TARGET_ENTITY,
     CONF_API_PORT,
@@ -14,6 +15,7 @@ from .const import (
     CONF_AUTH_METHOD,
     CONF_RUARK_PIN,
     CONF_MUTE_YANDEX_STATION,
+    DEFAULT_API_HOST,
     DEFAULT_API_PORT,
     DEFAULT_MUTE_YANDEX_STATION,
     AUTH_METHOD_YANDEX_STATION,
@@ -39,6 +41,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.cookie = None
         self.source_entity = None
         self.target_entity = None
+        self.api_host = DEFAULT_API_HOST
         self.api_port = DEFAULT_API_PORT
 
     async def async_step_user(self, user_input=None):
@@ -188,6 +191,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Сохраняем данные
             self.source_entity = user_input[CONF_SOURCE_ENTITY]
             self.target_entity = user_input[CONF_TARGET_ENTITY]
+            self.api_host = user_input.get(CONF_API_HOST, DEFAULT_API_HOST)
             self.api_port = user_input.get(CONF_API_PORT, DEFAULT_API_PORT)
             self.ruark_pin = user_input.get(CONF_RUARK_PIN, "")
             self.mute_yandex_station = user_input.get(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
@@ -199,6 +203,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_COOKIE: self.cookie,
                 CONF_SOURCE_ENTITY: self.source_entity,
                 CONF_TARGET_ENTITY: self.target_entity,
+                CONF_API_HOST: self.api_host,
                 CONF_API_PORT: self.api_port,
                 CONF_RUARK_PIN: self.ruark_pin,
                 CONF_MUTE_YANDEX_STATION: self.mute_yandex_station,
@@ -229,6 +234,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data_schema = vol.Schema({
             vol.Required(CONF_SOURCE_ENTITY): source_selector,
             vol.Required(CONF_TARGET_ENTITY): target_selector,
+            vol.Optional(CONF_API_HOST, default=DEFAULT_API_HOST): str,
             vol.Optional(CONF_API_PORT, default=self.api_port): int,
             vol.Optional(CONF_RUARK_PIN, default=""): str,
             vol.Optional(CONF_MUTE_YANDEX_STATION, default=DEFAULT_MUTE_YANDEX_STATION): bool,
@@ -282,6 +288,7 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
         
         current_source = get_value(CONF_SOURCE_ENTITY, "")
         current_target = get_value(CONF_TARGET_ENTITY, "")
+        current_api_host = get_value(CONF_API_HOST, DEFAULT_API_HOST)
         current_api_port = get_value(CONF_API_PORT, DEFAULT_API_PORT)
         current_ruark_pin = get_value(CONF_RUARK_PIN, "")
         current_mute_yandex_station = get_value(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
@@ -309,6 +316,7 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
         data_schema = vol.Schema({
             vol.Required(CONF_SOURCE_ENTITY, default=current_source): source_selector,
             vol.Required(CONF_TARGET_ENTITY, default=current_target): target_selector,
+            vol.Optional(CONF_API_HOST, default=current_api_host): str,
             vol.Optional(CONF_API_PORT, default=current_api_port): int,
             vol.Optional(CONF_RUARK_PIN, default=current_ruark_pin): str,
             vol.Optional(CONF_MUTE_YANDEX_STATION, default=current_mute_yandex_station): bool,

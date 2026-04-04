@@ -434,13 +434,18 @@ class DeviceManager:
         extra: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Установить активный приёмник звука с дополнительными данными."""
+        # Добавляем friendly_name в extra для поиска, если он передан
+        search_extra = extra.copy() if extra else {}
+        if friendly_name and "friendly_name" not in search_extra:
+            search_extra["friendly_name"] = friendly_name
+        
         # Поиск устройства только по MAC и IPv4 адресам
         device = self.find_device_by_entity_id(
             entity_id=entity_id,
             ip_address=ip_address,
             mac_addresses=mac_addresses,
             platform=None,
-            extra=extra,
+            extra=search_extra,
         )
         if not device:
             logger.warning(f"Устройство {entity_id} не найдено по MAC или IPv4.")
