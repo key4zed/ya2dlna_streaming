@@ -62,9 +62,9 @@ class DeviceManager:
         logger.info("Поиск Яндекс Станций...")
         self._yandex_finder.find_devices()
         await asyncio.sleep(2)  # даём время на обнаружение
-        device = self._yandex_finder.device
+        devices = self._yandex_finder.devices
         stations = []
-        if device:
+        for device in devices:
             host = device.get("host", "")
             logger.debug(f"Найдена Яндекс Станция: host={host}, device={device}")
             station = YandexStation(
@@ -81,9 +81,9 @@ class DeviceManager:
             stations.append(station)
             self._devices[station.device_id] = station
             logger.debug(f"Добавлена Яндекс Станция: {station.name} (ID: {station.device_id})")
-        else:
+        if not stations:
             logger.debug("Яндекс Станции не найдены")
-        logger.info(f"Найдено станций: {len(stations)}")
+        logger.info(f"Найдено Яндекс Станций: {len(stations)}")
         return stations
 
     async def discover_dlna_renderers(self) -> List[DlnaRenderer]:

@@ -45,12 +45,16 @@ class YandexStationClient:
         self.tasks = []  # Хранение фоновых задач
 
         self.device_finder.find_devices()  # Поиск устройств Yandex в сети
-        self.device_id = self.device_finder.device["device_id"]
-        self.platform = self.device_finder.device["platform"]
+        device = self.device_finder.device
+        if not device:
+            raise RuntimeError("Не найдено ни одной Яндекс Станции в сети")
+        self.device_id = device["device_id"]
+        self.platform = device["platform"]
         self.uri = (
-            f"wss://{self.device_finder.device['host']}:"
-            f"{self.device_finder.device['port']}"
+            f"wss://{device['host']}:"
+            f"{device['port']}"
         )
+        logger.info(f"Подключаемся к Яндекс Станции: {self.device_id} ({device['host']}:{device['port']})")
 
     async def run_once(self):
         """Гарантированный однократный запуск WebSocket"""
