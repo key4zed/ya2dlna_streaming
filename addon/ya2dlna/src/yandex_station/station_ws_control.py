@@ -45,9 +45,12 @@ class YandexStationClient:
         self.tasks = []  # Хранение фоновых задач
 
         self.device_finder.find_devices()  # Поиск устройств Yandex в сети
-        device = self.device_finder.device
-        if not device:
+        # Дадим время на обнаружение устройств
+        time.sleep(2)
+        # Используем devices напрямую, чтобы избежать проблем с property
+        if not self.device_finder.devices:
             raise RuntimeError("Не найдено ни одной Яндекс Станции в сети")
+        device = self.device_finder.devices[0]
         self.device_id = device["device_id"]
         self.platform = device["platform"]
         self.uri = (
