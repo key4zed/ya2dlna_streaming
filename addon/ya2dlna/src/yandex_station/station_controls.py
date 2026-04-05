@@ -1,7 +1,7 @@
 import asyncio
 import json
 from logging import getLogger
-from typing import Union
+from typing import Union, Dict, Any
 
 from injector import inject
 
@@ -103,7 +103,7 @@ class YandexStationControls:
             logger.error(f"❌ Ошибка при получении состояния Алиса: {e}")
             return None
 
-    async def get_player_status(self) -> Union[dict, None]:
+    async def get_player_status(self) -> Union[Dict[str, Any], None]:
         """Получение статуса плеера"""
         try:
             state = await self.get_current_state()
@@ -118,7 +118,7 @@ class YandexStationControls:
             logger.error(f"❌ Ошибка при получении статуса плеера: {e}")
             return None
 
-    async def get_current_track(self) -> Track | None:
+    async def get_current_track(self) -> Union[Track, None]:
         """Получение текущего трека"""
         try:
             player_state = await self.get_player_status()
