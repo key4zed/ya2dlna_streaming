@@ -1,7 +1,6 @@
 import asyncio
 import json
 from logging import getLogger
-from typing import Optional
 
 from injector import inject
 
@@ -103,7 +102,7 @@ class YandexStationControls:
             logger.error(f"❌ Ошибка при получении состояния Алиса: {e}")
             return None
 
-    async def get_player_status(self) -> Optional[dict]:
+    async def get_player_status(self):
         """Получение статуса плеера"""
         try:
             state = await self.get_current_state()
