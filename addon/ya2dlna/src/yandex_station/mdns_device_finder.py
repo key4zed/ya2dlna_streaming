@@ -2,7 +2,6 @@ from core.logging.setup import setup_logging  # noqa
 import ipaddress
 from logging import getLogger
 from time import sleep
-from typing import List, Dict
 
 from zeroconf import (ServiceBrowser, ServiceListener, ServiceStateChange,
                       Zeroconf)
@@ -14,19 +13,17 @@ class DeviceFinder(ServiceListener):
     """Класс для поиска устройств Yandex Station в сети."""
 
     def __init__(self):
-        self.devices: List[Dict] = []
+        self.device = {}
         self.zeroconf = Zeroconf()
 
     def find_devices(self, type_="_yandexio._tcp.local."):
         """Поиск устройств Yandex Station в сети."""
-        self.devices.clear()
         self.browser = ServiceBrowser(
             zc=self.zeroconf,
             type_=type_,
             handlers=[self._handler_device]
         )
         sleep(1)
-        logger.info(f"Найдено Яндекс Станций: {len(self.devices)}")
 
     def _handler_device(
             self,
@@ -41,20 +38,15 @@ class DeviceFinder(ServiceListener):
             properties = {
                 a.decode(): v.decode() for a, v in info.properties.items()
             }
-            logger.debug(f"Properties: {properties}")
+            logger.info(f"Properties: {properties}")
 
-            device = {
+            self.device = {
                 "device_id": properties["deviceId"],
                 "platform": properties["platform"],
                 "host": str(ipaddress.ip_address(info.addresses[0])),
                 "port": info.port,
             }
-            # Проверяем, нет ли уже такого device_id в списке
-            if not any(d["device_id"] == device["device_id"] for d in self.devices):
-                self.devices.append(device)
-                logger.debug(f"Добавлена Яндекс Станция: {device}")
-            else:
-                logger.debug(f"Яндекс Станция {device['device_id']} уже в списке")
+            logger.info(f"Найдены устройства: {self.device}")
 
         except Exception as e:
             logger.error(f"Error: {e}")

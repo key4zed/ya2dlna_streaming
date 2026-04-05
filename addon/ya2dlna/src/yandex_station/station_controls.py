@@ -102,7 +102,7 @@ class YandexStationControls:
             logger.error(f"❌ Ошибка при получении состояния Алиса: {e}")
             return None
 
-    async def get_player_status(self):
+    async def get_player_status(self) -> Optional[Dict]:
         """Получение статуса плеера"""
         try:
             state = await self.get_current_state()

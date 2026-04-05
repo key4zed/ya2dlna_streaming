@@ -465,8 +465,6 @@ class Ya2DLNASwitch(SwitchEntity):
                         self._state = data.get("status") == "streaming"
                     else:
                         _LOGGER.debug(f"Status endpoint returned {resp.status}")
-                        # Если ответ не 200, считаем что стриминг не активен
-                        self._state = False
                 
                 # Дополнительная проверка: если переключатель включен, но устройства недоступны,
                 # автоматически выключаем переключатель
@@ -479,19 +477,11 @@ class Ya2DLNASwitch(SwitchEntity):
                             "Автоматически выключаем переключатель."
                         )
                         self._state = False
-                # Если переключатель выключен, но ранее был включен, состояние уже False
-                # Обновляем состояние сущности
-                self.async_write_ha_state()
+                        self.async_write_ha_state()
         except asyncio.TimeoutError:
             _LOGGER.debug("Timeout while updating switch state")
-            # Аддон не отвечает, выключаем переключатель
-            self._state = False
-            self.async_write_ha_state()
         except Exception as e:
             _LOGGER.debug(f"Could not update switch state from {self._api_host}:{self._api_port}: {e}")
-            # Любая другая ошибка - выключаем
-            self._state = False
-            self.async_write_ha_state()
 
 
 class Ya2DLNAMuteSwitch(SwitchEntity):

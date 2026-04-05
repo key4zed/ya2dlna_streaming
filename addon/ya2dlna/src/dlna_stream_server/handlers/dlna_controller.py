@@ -79,18 +79,19 @@ class DLNAController:
 
     def find_device(self, device_name: str) -> Optional[upnpclient.Device]:
         """Находит устройство по имени."""
-        logger.debug(f"Начинаем поиск устройства: {device_name}")
+        logger.info(f"Начинаем поиск устройства: {device_name}")
         try:
             devices = upnpclient.discover()
-            logger.info(f"Найдено DLNA устройств: {len(devices)}")
+            logger.info(f"Найдено {len(devices)} устройств")
             for device in devices:
                 try:
-                    logger.debug(
-                        f"DLNA устройство: friendly_name={device.friendly_name}, udn={device.udn}"
+                    logger.info(
+                        f"Проверяем устройство: {device.friendly_name}"
                     )
                     if device_name in device.friendly_name:
-                        logger.debug(
-                            f"Найдено подходящее устройство: friendly_name={device.friendly_name}, udn={device.udn}"
+                        logger.info(
+                            "Найдено подходящее устройство: "
+                            f"{device.friendly_name}"
                         )
                         return device
                 except Exception as e:
