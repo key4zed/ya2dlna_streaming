@@ -59,14 +59,14 @@ class DeviceManager:
 
     async def discover_yandex_stations(self) -> List[YandexStation]:
         """Обнаружить Яндекс Станции в сети."""
-        logger.info("Поиск Яндекс Станций...")
+        logger.debug("Поиск Яндекс Станций...")
         self._yandex_finder.find_devices()
         await asyncio.sleep(2)  # даём время на обнаружение
         devices = self._yandex_finder.devices
         stations = []
         for device in devices:
             host = device.get("host", "")
-            logger.debug(f"Найдена Яндекс Станция: host={host}, device={device}")
+            logger.debug(f"Найдена Яндекс Станция: host={host}, device_id={device.get('device_id', 'unknown')}")
             station = YandexStation(
                 device_id=device.get("device_id", "unknown"),
                 name=f"Yandex Station {device.get('platform', 'unknown')}",
@@ -80,20 +80,19 @@ class DeviceManager:
             )
             stations.append(station)
             self._devices[station.device_id] = station
-            logger.debug(f"Добавлена Яндекс Станция: {station.name} (ID: {station.device_id})")
         if not devices:
             logger.debug("Яндекс Станции не найдены")
-        logger.info(f"Найдено станций: {len(stations)}")
+        logger.info(f"Найдено Яндекс Станций: {len(stations)}")
         return stations
 
     async def discover_dlna_renderers(self) -> List[DlnaRenderer]:
         """Обнаружить DLNA-рендереры в сети."""
-        logger.info("Поиск DLNA-устройств...")
+        logger.debug("Поиск DLNA-устройств...")
         import upnpclient
         
         try:
             devices = upnpclient.discover()
-            logger.info(f"Найдено {len(devices)} DLNA устройств в сети")
+            logger.info(f"Найдено DLNA устройств: {len(devices)}")
 
             for d in devices:
                 logger.debug(f"DLNA устройство: friendly_name={d.friendly_name}, udn={d.udn}, location={d.location}")
@@ -127,12 +126,12 @@ class DeviceManager:
                 )
                 renderers.append(renderer)
                 self._devices[renderer.device_id] = renderer
-                logger.info(f"Добавлено DLNA устройство: {device.friendly_name} ({device.udn})")
+                logger.debug(f"Добавлено DLNA устройство: {device.friendly_name} ({device.udn})")
             except Exception as e:
                 logger.error(f"Ошибка при обработке DLNA устройства {device.friendly_name}: {e}", exc_info=True)
                 continue
         
-        logger.info(f"Найдено DLNA-устройств: {len(renderers)}")
+        logger.info(f"Найдено DLNA устройств: {len(renderers)}")
         return renderers
 
     async def discover_all(self) -> Dict[str, DeviceInfo]:
