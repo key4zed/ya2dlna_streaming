@@ -22,6 +22,12 @@ echo "PYTHONPATH=$PYTHONPATH"
 echo "sys.path:"
 python3 -c "import sys; print(sys.path)"
 
+# Очистка старых логов
+echo "=== Очистка старых логов ==="
+rm -rf /app/logs/* 2>/dev/null || true
+mkdir -p /app/logs
+echo "Логи очищены"
+
 # Проверка содержимого файлов
 echo "=== Checking /app/src/api/main.py ==="
 head -10 /app/src/api/main.py

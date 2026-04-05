@@ -42,6 +42,12 @@ RUN echo '#!/bin/sh' > /etc/cont-init.d/01-setup-env && \
     echo '  [ -n "${debug}" ] && echo "APP_DEBUG=${debug}"' >> /etc/cont-init.d/01-setup-env && \
     echo '} > /app/.env' >> /etc/cont-init.d/01-setup-env && \
     echo '' >> /etc/cont-init.d/01-setup-env && \
+    echo '# Очистка старых логов' >> /etc/cont-init.d/01-setup-env && \
+    echo 'echo "=== Очистка старых логов ==="' >> /etc/cont-init.d/01-setup-env && \
+    echo 'rm -rf /app/logs/* 2>/dev/null || true' >> /etc/cont-init.d/01-setup-env && \
+    echo 'mkdir -p /app/logs' >> /etc/cont-init.d/01-setup-env && \
+    echo 'echo "Логи очищены"' >> /etc/cont-init.d/01-setup-env && \
+    echo '' >> /etc/cont-init.d/01-setup-env && \
     echo 'echo "Created /app/.env with the following content:"' >> /etc/cont-init.d/01-setup-env && \
     echo 'cat /app/.env' >> /etc/cont-init.d/01-setup-env && \
     chmod +x /etc/cont-init.d/01-setup-env
