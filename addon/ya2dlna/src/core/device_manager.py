@@ -95,8 +95,8 @@ class DeviceManager:
             devices = upnpclient.discover()
             logger.info(f"Найдено {len(devices)} DLNA устройств в сети")
 
-            for i, d in enumerate(devices):
-                logger.debug(f"Устройство {i}: friendly_name={d.friendly_name}, udn={d.udn}, location={d.location}")
+            for d in devices:
+                logger.debug(f"DLNA устройство: friendly_name={d.friendly_name}, udn={d.udn}, location={d.location}")
         except Exception as e:
             logger.error(f"Ошибка при обнаружении DLNA устройств: {e}")
             devices = []

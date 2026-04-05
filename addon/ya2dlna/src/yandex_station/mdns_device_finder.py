@@ -26,6 +26,7 @@ class DeviceFinder(ServiceListener):
             handlers=[self._handler_device]
         )
         sleep(1)
+        logger.info(f"Найдено Яндекс Станций: {len(self.devices)}")
 
     def _handler_device(
             self,
@@ -40,7 +41,7 @@ class DeviceFinder(ServiceListener):
             properties = {
                 a.decode(): v.decode() for a, v in info.properties.items()
             }
-            logger.info(f"Properties: {properties}")
+            logger.debug(f"Properties: {properties}")
 
             device = {
                 "device_id": properties["deviceId"],
@@ -51,7 +52,7 @@ class DeviceFinder(ServiceListener):
             # Проверяем, нет ли уже такого device_id в списке
             if not any(d["device_id"] == device["device_id"] for d in self.devices):
                 self.devices.append(device)
-                logger.info(f"Добавлена Яндекс Станция: {device}")
+                logger.debug(f"Добавлена Яндекс Станция: {device}")
             else:
                 logger.debug(f"Яндекс Станция {device['device_id']} уже в списке")
 
