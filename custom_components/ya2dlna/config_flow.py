@@ -91,9 +91,9 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         
                         # Логируем полученные устройства для отладки
                         ha_version = getattr(self.hass.config, "version", "unknown")
-                        _LOGGER.debug(f"Получено {len(devices)} устройств от аддона (HA {ha_version}):")
+                        _LOGGER.info(f"Получено {len(devices)} устройств от аддона (HA {ha_version}):")
                         for i, dev in enumerate(devices):
-                            _LOGGER.debug(f"  Устройство {i}: device_id={dev.get('device_id')}, name={dev.get('name')}, ip_address={dev.get('ip_address')}, host={dev.get('host')}, extra={dev.get('extra', {})}")
+                            _LOGGER.info(f"  Устройство {i}: device_id={dev.get('device_id')}, name={dev.get('name')}, ip_address={dev.get('ip_address')}, host={dev.get('host')}, extra={dev.get('extra', {})}")
                         
                         # Получить entity registry для определения интеграции
                         registry = entity_registry.async_get(self.hass)
