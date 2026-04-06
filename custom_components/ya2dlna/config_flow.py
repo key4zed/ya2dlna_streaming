@@ -10,6 +10,7 @@ from .const import (
     DOMAIN,
     CONF_API_HOST,
     CONF_SOURCE_ENTITY,
+    CONF_SOURCE_DEVICE_ID,
     CONF_TARGET_ENTITY,
     CONF_API_PORT,
     CONF_X_TOKEN,
@@ -77,15 +78,18 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.dlna_devices = None  # список кортежей (device_id, friendly_name)
         self.target_device_id = None
         self.target_friendly_name = None
+        self.yandex_mapping = {}  # entity_id -> device_id
 
     async def _fetch_dlna_devices(self) -> list:
         """Запросить список DLNA-устройств у аддона."""
         url = f"http://{self.api_host}:{self.api_port}/ha/devices/dlna"
+        _LOGGER.debug(f"GET запрос к {url}")
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=10) as resp:
                     if resp.status == 200:
                         devices = await resp.json()
+                        _LOGGER.debug(f"GET ответ: статус {resp.status}, тело: {devices}")
                         # Преобразуем в список кортежей (device_id, friendly_name)
                         result = []
                         for dev in devices:
@@ -94,7 +98,11 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             result.append((device_id, friendly_name))
                         return result
                     else:
-                        _LOGGER.error(f"Ошибка при запросе устройств: {resp.status}")
+                        try:
+                            response_text = await resp.text()
+                            _LOGGER.error(f"Ошибка при запросе устройств: статус {resp.status}, тело: {response_text}")
+                        except:
+                            _LOGGER.error(f"Ошибка при запросе устройств: статус {resp.status}, тело недоступно")
                         return []
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             _LOGGER.error(f"Не удалось подключиться к аддону: {e}")
@@ -106,11 +114,13 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def _fetch_yandex_stations(self) -> list:
         """Запросить список Яндекс Станций у аддона и вернуть entity_id."""
         url = f"http://{self.api_host}:{self.api_port}/ha/devices/yandex"
+        _LOGGER.debug(f"GET запрос к {url}")
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=10) as resp:
                     if resp.status == 200:
                         devices = await resp.json()
+                        _LOGGER.debug(f"GET ответ: статус {resp.status}, тело: {devices}")
                         # devices - список объектов YandexStation с полями device_id, name, ip_address, mac_addresses и т.д.
                         if not devices:
                             _LOGGER.info("Аддон не обнаружил Яндекс Станций")
@@ -125,6 +135,8 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         # Получить entity registry для определения интеграции
                         registry = entity_registry.async_get(self.hass)
                         yandex_entity_ids = []
+                        # Очищаем mapping перед заполнением
+                        self.yandex_mapping.clear()
                         
                         # Пройти по всем сущностям media_player
                         for entry in registry.entities.values():
@@ -143,6 +155,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             # Попробуем сопоставить с устройствами от аддона
                             matched = False
                             match_reason = ""
+                            matched_device = None
                             for dev in devices:
                                 # Сравниваем по friendly_name (name) или device_id (MAC)
                                 dev_name = dev.get("name", "").strip()
@@ -163,40 +176,55 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                     if dev_device_id_lower == entry_unique_id_lower:
                                         matched = True
                                         match_reason = f"device_id exact match {dev_device_id}"
+                                        matched_device = dev
                                         break
                                     if dev_device_id_lower in entry_unique_id_lower:
                                         matched = True
                                         match_reason = f"device_id in unique_id {dev_device_id}"
+                                        matched_device = dev
                                         break
                                 # Сравнение по имени
                                 if dev_name and dev_name == entity_friendly_name:
                                     matched = True
                                     match_reason = f"name {dev_name}"
+                                    matched_device = dev
                                     break
                                 # Сравнение по IP адресу
                                 if dev_ip and entity_ip and dev_ip == entity_ip:
                                     matched = True
                                     match_reason = f"IP {dev_ip}"
+                                    matched_device = dev
                                     break
                                 if dev_host and entity_ip and dev_host == entity_ip:
                                     matched = True
                                     match_reason = f"host {dev_host}"
+                                    matched_device = dev
                                     break
                                 # Сравнение по host (может быть hostname)
                                 if dev_host and dev_host in entry_unique_id:
                                     matched = True
                                     match_reason = f"host in unique_id"
+                                    matched_device = dev
                                     break
                             if matched:
                                 _LOGGER.info(f"Сопоставлено устройство {entry.entity_id} по {match_reason} (platform={entry.platform})")
                                 yandex_entity_ids.append(entry.entity_id)
+                                # Сохраняем mapping entity_id -> device_id
+                                if matched_device and matched_device.get('device_id'):
+                                    self.yandex_mapping[entry.entity_id] = matched_device.get('device_id')
+                                    _LOGGER.debug(f"Сохранён mapping: {entry.entity_id} -> {matched_device.get('device_id')}")
                             else:
                                 _LOGGER.info(f"Не удалось сопоставить сущность {entry.entity_id} (platform={entry.platform}, friendly_name={entity_friendly_name}, device_id={entity_device_id}, ip={entity_ip}) с устройствами аддона")
                         
                         _LOGGER.info(f"Найдено {len(yandex_entity_ids)} Яндекс Станций в Home Assistant (из {len(devices)} обнаруженных аддоном)")
+                        _LOGGER.debug(f"Mapping Яндекс Станций: {self.yandex_mapping}")
                         return yandex_entity_ids
                     else:
-                        _LOGGER.error(f"Ошибка при запросе Яндекс Станций: {resp.status}")
+                        try:
+                            response_text = await resp.text()
+                            _LOGGER.error(f"Ошибка при запросе Яндекс Станций: статус {resp.status}, тело: {response_text}")
+                        except:
+                            _LOGGER.error(f"Ошибка при запросе Яндекс Станций: статус {resp.status}, тело недоступно")
                         return []
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             _LOGGER.error(f"Не удалось подключиться к аддону: {e}")
@@ -429,12 +457,17 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 # Получить значение enable_file_logging из user_input
                 enable_file_logging = user_input.get(CONF_ENABLE_FILE_LOGGING, DEFAULT_ENABLE_FILE_LOGGING)
+                # Получить device_id источника из mapping
+                source_device_id = self.yandex_mapping.get(self.source_entity)
+                if not source_device_id:
+                    _LOGGER.warning(f"Не найден device_id для сущности {self.source_entity} в mapping. Будет использован entity_id для запросов к аддону (может вызвать ошибку 404).")
                 # Создаём финальную запись
                 data = {
                     CONF_AUTH_METHOD: self.auth_method,
                     CONF_X_TOKEN: self.x_token,
                     CONF_COOKIE: self.cookie,
                     CONF_SOURCE_ENTITY: self.source_entity,
+                    CONF_SOURCE_DEVICE_ID: source_device_id or "",
                     CONF_TARGET_ENTITY: self.target_entity,
                     CONF_TARGET_DEVICE_ID: self.target_device_id,
                     CONF_TARGET_FRIENDLY_NAME: self.target_friendly_name,
@@ -569,6 +602,7 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
                         # Получить entity registry для определения интеграции
                         registry = entity_registry.async_get(self.hass)
                         yandex_entity_ids = []
+                        self.yandex_mapping = {}
                         
                         # Пройти по всем сущностям media_player
                         for entry in registry.entities.values():
@@ -728,8 +762,11 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
         fields[vol.Optional(CONF_TARGET_ENTITY, default=current_target)] = str
         
         data_schema = vol.Schema(fields)
+        # Вычислить URL для скачивания OpenAPI YAML
+        swagger_url = f"http://{current_api_host}:{current_api_port}/openapi.yaml"
         return self.async_show_form(
             step_id="init",
             data_schema=data_schema,
             errors=errors,
+            description_placeholders={"swagger_url": swagger_url},
         )

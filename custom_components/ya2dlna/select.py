@@ -112,11 +112,13 @@ class Ya2DLNASelect(SelectEntity):
     async def _fetch_available_targets(self):
         """Получить список доступных DLNA-устройств из аддона."""
         url = f"http://{self._api_host}:{self._api_port}/ha/devices/dlna"
+        _LOGGER.debug(f"GET запрос к {url}")
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=10) as resp:
                     if resp.status == 200:
                         devices = await resp.json()
+                        _LOGGER.debug(f"GET ответ: статус {resp.status}, тело: {devices}")
                         self._available_targets = []
                         options = []
                         for dev in devices:
@@ -127,7 +129,11 @@ class Ya2DLNASelect(SelectEntity):
                         self._attr_options = options
                         _LOGGER.debug("Доступные таргеты: %s", self._available_targets)
                     else:
-                        _LOGGER.warning("Не удалось получить список устройств: статус %s", resp.status)
+                        try:
+                            response_text = await resp.text()
+                            _LOGGER.warning(f"Не удалось получить список устройств: статус {resp.status}, тело: {response_text}")
+                        except:
+                            _LOGGER.warning(f"Не удалось получить список устройств: статус {resp.status}, тело недоступно")
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             _LOGGER.error("Ошибка при запросе списка устройств: %s", e)
             self._attr_options = []
@@ -135,11 +141,13 @@ class Ya2DLNASelect(SelectEntity):
     async def _fetch_active_target(self):
         """Получить текущий активный таргет из аддона."""
         url = f"http://{self._api_host}:{self._api_port}/ha/config"
+        _LOGGER.debug(f"GET запрос к {url}")
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=10) as resp:
                     if resp.status == 200:
                         config = await resp.json()
+                        _LOGGER.debug(f"GET ответ: статус {resp.status}, тело: {config}")
                         active_target = config.get("active_target")
                         if active_target:
                             # active_target может быть словарём или строкой device_id
@@ -160,7 +168,11 @@ class Ya2DLNASelect(SelectEntity):
                         else:
                             self._attr_current_option = None
                     else:
-                        _LOGGER.warning("Не удалось получить конфигурацию: статус %s", resp.status)
+                        try:
+                            response_text = await resp.text()
+                            _LOGGER.warning(f"Не удалось получить конфигурацию: статус {resp.status}, тело: {response_text}")
+                        except:
+                            _LOGGER.warning(f"Не удалось получить конфигурацию: статус {resp.status}, тело недоступно")
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             _LOGGER.error("Ошибка при запросе активного таргета: %s", e)
 
@@ -177,6 +189,7 @@ class Ya2DLNASelect(SelectEntity):
             return
         # Отправить запрос на установку активного таргета
         url = f"http://{self._api_host}:{self._api_port}/ha/target/{device_id}"
+        _LOGGER.debug(f"POST запрос к {url} (тело запроса отсутствует)")
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, timeout=10) as resp:
@@ -184,9 +197,13 @@ class Ya2DLNASelect(SelectEntity):
                         self._attr_current_option = option
                         _LOGGER.info("Активный таргет установлен на %s", option)
                     else:
-                        _LOGGER.error("Ошибка установки таргета: статус %s", resp.status)
+                        try:
+                            response_text = await resp.text()
+                            _LOGGER.error(f"Ошибка установки таргета: статус {resp.status}, тело ответа: {response_text}")
+                        except:
+                            _LOGGER.error(f"Ошибка установки таргета: статус {resp.status}, тело ответа недоступно")
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-            _LOGGER.error("Ошибка при установке таргета: %s", e)
+            _LOGGER.error(f"Ошибка при установке таргета: {e}")
 
     @property
     def extra_state_attributes(self):

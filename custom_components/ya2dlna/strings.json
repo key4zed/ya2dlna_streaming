@@ -65,7 +65,7 @@
         "ruark_pin": "PIN для Ruark R5 (опционально)",
         "mute_yandex_station": "Отключать звук на Яндекс Станции во время трансляции"
       },
-      "description": "Настройки интеграции Ya2DLNA. Токены и cookie управляются через API add-on.",
+      "description": "Настройки интеграции Ya2DLNA. Токены и cookie управляются через API add-on.\n\nСкачать OpenAPI спецификацию (YAML) для Swagger: {swagger_url}",
       "title": "Настройки Ya2DLNA"
     }
   }

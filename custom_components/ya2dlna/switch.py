@@ -9,6 +9,7 @@ from .const import (
     DOMAIN,
     CONF_API_HOST,
     CONF_SOURCE_ENTITY,
+    CONF_SOURCE_DEVICE_ID,
     CONF_TARGET_ENTITY,
     CONF_API_PORT,
     CONF_X_TOKEN,
@@ -65,6 +66,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     api_host = get_config(CONF_API_HOST, DEFAULT_API_HOST)
     api_port = get_config(CONF_API_PORT, DEFAULT_API_PORT)
     source_entity = get_config(CONF_SOURCE_ENTITY)
+    source_device_id = get_config(CONF_SOURCE_DEVICE_ID, "")
     target_entity = get_config(CONF_TARGET_ENTITY)
     target_device_id = get_config(CONF_TARGET_DEVICE_ID)
     target_friendly_name = get_config(CONF_TARGET_FRIENDLY_NAME)
@@ -72,7 +74,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     cookie = get_config(CONF_COOKIE, "")
     ruark_pin = get_config(CONF_RUARK_PIN, "")
     mute_yandex_station = get_config(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
-    _LOGGER.debug(f"Конфигурация: api_host={api_host}, api_port={api_port}, source_entity={source_entity}, target_entity={target_entity}, target_device_id={target_device_id}, target_friendly_name={target_friendly_name}, mute_yandex_station={mute_yandex_station}, enable_file_logging={enable_file_logging}")
+    _LOGGER.debug(f"Конфигурация: api_host={api_host}, api_port={api_port}, source_entity={source_entity}, source_device_id={source_device_id}, target_entity={target_entity}, target_device_id={target_device_id}, target_friendly_name={target_friendly_name}, mute_yandex_station={mute_yandex_station}, enable_file_logging={enable_file_logging}")
 
     # Проверка обязательных параметров
     missing = []
@@ -100,6 +102,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         ruark_pin,
         mute_yandex_station,
         config_entry.entry_id,
+        source_device_id,
     )
     
     # Создаём дополнительный switch для управления mute_yandex_station
@@ -118,12 +121,13 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class Ya2DLNASwitch(SwitchEntity):
     """Representation of a streaming switch."""
 
-    def __init__(self, hass, api_host, api_port, source_entity, target_entity, target_device_id, target_friendly_name, x_token, cookie, ruark_pin, mute_yandex_station, entry_id):
+    def __init__(self, hass, api_host, api_port, source_entity, target_entity, target_device_id, target_friendly_name, x_token, cookie, ruark_pin, mute_yandex_station, entry_id, source_device_id=""):
         """Initialize the switch."""
         self.hass = hass
         self._api_host = api_host  # Настраиваемый API хост
         self._api_port = api_port
         self._source_entity = source_entity
+        self._source_device_id = source_device_id
         self._target_entity = target_entity
         self._target_device_id = target_device_id
         self._target_friendly_name = target_friendly_name
@@ -152,13 +156,21 @@ class Ya2DLNASwitch(SwitchEntity):
 
     async def _check_server_availability(self, session):
         """Проверить, доступен ли сервер API."""
+        url = f"http://{self._api_host}:{self._api_port}/ha/stream/status"
         try:
+            _LOGGER.debug(f"GET запрос к {url}")
             async with session.get(
-                f"http://{self._api_host}:{self._api_port}/ha/stream/status",
+                url,
                 timeout=aiohttp.ClientTimeout(total=5)
             ) as resp:
+                try:
+                    response_text = await resp.text()
+                    _LOGGER.debug(f"GET ответ: статус {resp.status}, тело: {response_text}")
+                except:
+                    _LOGGER.debug(f"GET ответ: статус {resp.status}, тело недоступно")
                 return resp.status == 200
-        except (aiohttp.ClientError, asyncio.TimeoutError):
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            _LOGGER.debug(f"GET запрос к {url} вызвал исключение: {e}")
             return False
 
     async def _check_device_availability(self, entity_id: str) -> bool:
@@ -378,7 +390,10 @@ class Ya2DLNASwitch(SwitchEntity):
                 _LOGGER.debug(f"Информация о приёмнике {self._target_entity}: {target_info}")
                 
                 # Установить источник с передачей дополнительной информации
-                source_url = f"http://{self._api_host}:{self._api_port}/ha/source/{self._source_entity}"
+                # Используем source_device_id, если он есть, иначе entity_id (fallback)
+                source_device_id = self._source_device_id if self._source_device_id else self._source_entity
+                _LOGGER.info(f"Используемый source_device_id: {source_device_id} (из mapping: {self._source_device_id}, entity: {self._source_entity})")
+                source_url = f"http://{self._api_host}:{self._api_port}/ha/source/{source_device_id}"
                 _LOGGER.debug(f"Установка источника через {source_url} с данными: {source_info}")
                 resp = await session.post(
                     source_url,
@@ -460,10 +475,14 @@ class Ya2DLNASwitch(SwitchEntity):
             headers = {"X-Home-Assistant-Version": self._ha_version}
             async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
                 stop_url = f"http://{self._api_host}:{self._api_port}/ha/stream/stop"
-                _LOGGER.debug(f"Остановка стриминга через {stop_url}")
+                _LOGGER.debug(f"POST запрос к {stop_url} (тело запроса отсутствует)")
                 resp = await session.post(stop_url)
                 if resp.status not in (200, 201, 204):
-                    _LOGGER.warning(f"Не удалось остановить стриминг: {resp.status} (HA {self._ha_version})")
+                    try:
+                        response_text = await resp.text()
+                        _LOGGER.warning(f"Не удалось остановить стриминг: статус {resp.status} (HA {self._ha_version}), тело ответа: {response_text}")
+                    except:
+                        _LOGGER.warning(f"Не удалось остановить стриминг: статус {resp.status} (HA {self._ha_version}), тело ответа недоступно")
                 else:
                     self._state = False
                     self.async_write_ha_state()
@@ -489,6 +508,7 @@ class Ya2DLNASwitch(SwitchEntity):
             self._api_host = get_config(CONF_API_HOST, DEFAULT_API_HOST)
             self._api_port = get_config(CONF_API_PORT, DEFAULT_API_PORT)
             self._source_entity = get_config(CONF_SOURCE_ENTITY)
+            self._source_device_id = get_config(CONF_SOURCE_DEVICE_ID, "")
             self._target_entity = get_config(CONF_TARGET_ENTITY)
             self._target_device_id = get_config(CONF_TARGET_DEVICE_ID)
             self._target_friendly_name = get_config(CONF_TARGET_FRIENDLY_NAME)
@@ -497,7 +517,7 @@ class Ya2DLNASwitch(SwitchEntity):
             self._ruark_pin = get_config(CONF_RUARK_PIN, "")
             self._mute_yandex_station = get_config(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
             
-            _LOGGER.debug(f"Конфигурация переключателя обновлена: source={self._source_entity}, target={self._target_entity}, target_device_id={self._target_device_id}")
+            _LOGGER.debug(f"Конфигурация переключателя обновлена: source={self._source_entity}, source_device_id={self._source_device_id}, target={self._target_entity}, target_device_id={self._target_device_id}")
         except Exception as e:
             _LOGGER.error(f"Ошибка при обновлении конфигурации из записи: {e}")
 
@@ -518,13 +538,18 @@ class Ya2DLNASwitch(SwitchEntity):
                     return
                 
                 status_url = f"http://{self._api_host}:{self._api_port}/ha/stream/status"
-                _LOGGER.debug(f"Опрос статуса через {status_url}")
+                _LOGGER.debug(f"GET запрос к {status_url}")
                 async with session.get(status_url) as resp:
                     if resp.status == 200:
                         data = await resp.json()
+                        _LOGGER.debug(f"GET ответ: статус {resp.status}, тело: {data}")
                         self._state = data.get("status") == "streaming"
                     else:
-                        _LOGGER.debug(f"Эндпоинт статуса вернул {resp.status}")
+                        try:
+                            response_text = await resp.text()
+                            _LOGGER.debug(f"GET ответ: статус {resp.status}, тело: {response_text}")
+                        except:
+                            _LOGGER.debug(f"GET ответ: статус {resp.status}, тело недоступно")
                         # Если ответ не 200, считаем что стриминг не активен
                         self._state = False
                 

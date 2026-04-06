@@ -6,6 +6,7 @@ DEFAULT_NAME = "Ya2DLNA Streaming"
 # Параметры интеграции (должны быть только эти)
 CONF_API_HOST = "api_host"
 CONF_SOURCE_ENTITY = "source_entity"
+CONF_SOURCE_DEVICE_ID = "source_device_id"
 CONF_TARGET_ENTITY = "target_entity"
 CONF_API_PORT = "api_port"
 CONF_X_TOKEN = "x_token"

@@ -3,7 +3,7 @@ from logging import getLogger
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.dependencies.main_di_container import MainDIContainer
 from core.device_manager import DeviceManager
@@ -21,21 +21,86 @@ logger = getLogger(__name__)
 
 class SetSourceRequest(BaseModel):
     """Модель запроса для установки источника."""
-    entity_id: str
-    ip_address: Optional[str] = None
-    mac_addresses: Optional[List[str]] = None
-    platform: Optional[str] = None
-    extra: Optional[Dict[str, Any]] = None
+    entity_id: str = Field(
+        example="media_player.yandex_station_123",
+        description="Entity ID Яндекс Станции в Home Assistant"
+    )
+    ip_address: Optional[str] = Field(
+        default=None,
+        example="192.168.1.100",
+        description="IP адрес устройства в локальной сети"
+    )
+    mac_addresses: Optional[List[str]] = Field(
+        default=None,
+        example=["aa:bb:cc:dd:ee:ff"],
+        description="Список MAC адресов устройства"
+    )
+    platform: Optional[str] = Field(
+        default=None,
+        example="yandex_station",
+        description="Платформа интеграции (например, yandex_station)"
+    )
+    extra: Optional[Dict[str, Any]] = Field(
+        default=None,
+        example={"room": "living_room", "volume": 50},
+        description="Дополнительные произвольные данные"
+    )
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "entity_id": "media_player.yandex_station_123",
+                "ip_address": "192.168.1.100",
+                "mac_addresses": ["aa:bb:cc:dd:ee:ff"],
+                "platform": "yandex_station",
+                "extra": {"room": "living_room"}
+            }
+        }
 
 
 class SetTargetRequest(BaseModel):
     """Модель запроса для установки приёмника."""
-    entity_id: str
-    ip_address: Optional[str] = None
-    mac_addresses: Optional[List[str]] = None
-    friendly_name: Optional[str] = None
-    renderer_url: Optional[str] = None
-    extra: Optional[Dict[str, Any]] = None
+    entity_id: str = Field(
+        example="media_player.dlna_renderer_456",
+        description="Entity ID DLNA-рендерера в Home Assistant"
+    )
+    ip_address: Optional[str] = Field(
+        default=None,
+        example="192.168.1.200",
+        description="IP адрес устройства в локальной сети"
+    )
+    mac_addresses: Optional[List[str]] = Field(
+        default=None,
+        example=["11:22:33:44:55:66"],
+        description="Список MAC адресов устройства"
+    )
+    friendly_name: Optional[str] = Field(
+        default=None,
+        example="Living Room Speaker",
+        description="Человекочитаемое имя устройства"
+    )
+    renderer_url: Optional[str] = Field(
+        default=None,
+        example="http://192.168.1.200:49152/description.xml",
+        description="URL DLNA-рендерера для управления"
+    )
+    extra: Optional[Dict[str, Any]] = Field(
+        default=None,
+        example={"manufacturer": "Sonos", "model": "Play:5"},
+        description="Дополнительные произвольные данные"
+    )
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "entity_id": "media_player.dlna_renderer_456",
+                "ip_address": "192.168.1.200",
+                "mac_addresses": ["11:22:33:44:55:66"],
+                "friendly_name": "Living Room Speaker",
+                "renderer_url": "http://192.168.1.200:49152/description.xml",
+                "extra": {"manufacturer": "Sonos"}
+            }
+        }
 
 
 router = APIRouter(prefix="/ha", tags=["home_assistant"])
@@ -47,7 +112,15 @@ main_stream_manager = di_container.get(MainStreamManager)
 
 @router.get("/devices", response_model=List[DeviceInfo])
 async def list_devices(request: Request):
-    """Получить список всех обнаруженных устройств."""
+    """Получить список всех обнаруженных устройств.
+
+    Возвращает список устройств, обнаруженных в сети: Яндекс Станции и DLNA-рендереры.
+    Устройства обновляются при каждом запросе через mDNS и UPnP.
+
+    Ответ:
+    - 200: Успешно, возвращает список объектов DeviceInfo.
+    - 500: Внутренняя ошибка сервера.
+    """
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Запрос списка всех устройств (HA {ha_version})")
     try:
@@ -61,7 +134,15 @@ async def list_devices(request: Request):
 
 @router.get("/devices/yandex", response_model=List[YandexStation])
 async def list_yandex_stations(request: Request):
-    """Получить список Яндекс Станций."""
+    """Получить список Яндекс Станций.
+
+    Возвращает список Яндекс Станций, обнаруженных в сети через mDNS.
+    Каждая станция содержит информацию о device_id, имени, IP адресе, громкости и состоянии.
+
+    Ответ:
+    - 200: Успешно, возвращает список объектов YandexStation.
+    - 500: Внутренняя ошибка сервера.
+    """
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Запрос списка Яндекс Станций (HA {ha_version})")
     try:
@@ -75,7 +156,15 @@ async def list_yandex_stations(request: Request):
 
 @router.get("/devices/dlna", response_model=List[DlnaRenderer])
 async def list_dlna_renderers(request: Request):
-    """Получить список DLNA-устройств."""
+    """Получить список DLNA-устройств.
+
+    Возвращает список DLNA-рендереров, обнаруженных в сети через UPnP.
+    Каждое устройство содержит информацию о device_id, friendly_name, URL рендерера, громкости и состоянии питания.
+
+    Ответ:
+    - 200: Успешно, возвращает список объектов DlnaRenderer.
+    - 500: Внутренняя ошибка сервера.
+    """
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Запрос списка DLNA-устройств (HA {ha_version})")
     try:
@@ -93,7 +182,22 @@ async def set_source(
     request: Request,
     request_body: Optional[SetSourceRequest] = None,
 ):
-    """Установить активный источник звука (Яндекс Станция)."""
+    """Установить активный источник звука (Яндекс Станция).
+
+    Устанавливает активный источник для стриминга. Источником может быть Яндекс Станция,
+    обнаруженная в сети. Устройство можно указать двумя способами:
+    1. Через path parameter `device_id` (простой способ, если device_id известен).
+    2. Через JSON body с подробными данными (entity_id, IP, MAC и т.д.) для точного сопоставления.
+
+    Параметры:
+    - `device_id`: ID устройства, полученный из списка устройств (используется, если не передан JSON body).
+    - `request_body`: (опционально) Объект SetSourceRequest с дополнительными данными для поиска устройства.
+
+    Ответ:
+    - 200: Успешно, возвращает сообщение об установке источника.
+    - 404: Устройство не найдено или не является Яндекс Станцией.
+    - 500: Внутренняя ошибка сервера.
+    """
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     
     # Определяем entity_id: если передан JSON body, используем его, иначе device_id из пути
@@ -142,7 +246,22 @@ async def set_target(
     request: Request,
     request_body: Optional[SetTargetRequest] = None,
 ):
-    """Установить активный приёмник звука (DLNA-устройство)."""
+    """Установить активный приёмник звука (DLNA-устройство).
+
+    Устанавливает активный приёмник для стриминга. Приёмником может быть DLNA-рендерер,
+    обнаруженный в сети. Устройство можно указать двумя способами:
+    1. Через path parameter `device_id` (простой способ, если device_id известен).
+    2. Через JSON body с подробными данными (entity_id, IP, MAC, friendly_name, renderer_url и т.д.) для точного сопоставления.
+
+    Параметры:
+    - `device_id`: ID устройства, полученный из списка устройств (используется, если не передан JSON body).
+    - `request_body`: (опционально) Объект SetTargetRequest с дополнительными данными для поиска устройства.
+
+    Ответ:
+    - 200: Успешно, возвращает сообщение об установке приёмника.
+    - 404: Устройство не найдено или не является DLNA-рендерером.
+    - 500: Внутренняя ошибка сервера.
+    """
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     
     # Определяем entity_id: если передан JSON body, используем его, иначе device_id из пути
@@ -190,7 +309,15 @@ async def set_target(
 
 @router.get("/config", response_model=StreamingConfig)
 async def get_config(request: Request):
-    """Получить текущую конфигурацию стриминга."""
+    """Получить текущую конфигурацию стриминга.
+
+    Возвращает текущую конфигурацию стриминга, включая активные источник и приёмник,
+    настройку отключения звука на Яндекс Станции, состояние стриминга и статус.
+
+    Ответ:
+    - 200: Успешно, возвращает объект StreamingConfig.
+    - 500: Внутренняя ошибка сервера.
+    """
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Запрос конфигурации стриминга (HA {ha_version})")
     try:
@@ -217,7 +344,22 @@ async def start_streaming(
     ruark_pin: Optional[str] = Query(None, description="PIN‑код для управления Ruark R5 (опционально)"),
     mute_yandex_station: Optional[bool] = Query(None, description="Отключать звук на Яндекс Станции во время трансляции (опционально)"),
 ):
-    """Запустить стриминг с активного источника на активный приёмник."""
+    """Запустить стриминг с активного источника на активный приёмник.
+
+    Запускает трансляцию аудио с активной Яндекс Станции на активный DLNA-рендерер.
+    Перед запуском необходимо установить активные источник и приёмник через соответствующие эндпоинты.
+
+    Параметры запроса (query parameters):
+    - `x_token`: (опционально) X‑Token для авторизации на Яндекс.Станции.
+    - `cookie`: (опционально) Cookie для авторизации на Яндекс.Станции.
+    - `ruark_pin`: (опционально) PIN‑код для управления Ruark R5.
+    - `mute_yandex_station`: (опционально) Отключать звук на Яндекс Станции во время трансляции (по умолчанию True).
+
+    Ответ:
+    - 200: Успешно, возвращает сообщение о запуске стриминга.
+    - 400: Не установлены активные источник и/или приёмник.
+    - 500: Внутренняя ошибка сервера.
+    """
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Запуск стриминга (HA {ha_version})")
     source = device_manager.get_active_source()
@@ -247,7 +389,14 @@ async def start_streaming(
 
 @router.post("/stream/stop")
 async def stop_streaming(request: Request):
-    """Остановить стриминг."""
+    """Остановить стриминг.
+
+    Останавливает текущую трансляцию аудио. Если стриминг не запущен, возвращает успех.
+
+    Ответ:
+    - 200: Успешно, возвращает сообщение об остановке стриминга.
+    - 500: Внутренняя ошибка сервера.
+    """
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Остановка стриминга (HA {ha_version})")
     try:
@@ -261,7 +410,15 @@ async def stop_streaming(request: Request):
 
 @router.get("/stream/status")
 async def get_stream_status(request: Request):
-    """Получить статус стриминга."""
+    """Получить статус стриминга.
+
+    Возвращает текущий статус стриминга: idle (ожидание), streaming (трансляция),
+    paused (пауза) или error (ошибка).
+
+    Ответ:
+    - 200: Успешно, возвращает объект с полем `status`.
+    - 500: Внутренняя ошибка сервера.
+    """
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
     logger.info(f"Запрос статуса стриминга (HA {ha_version})")
     try:
