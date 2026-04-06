@@ -455,7 +455,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             "multiple": False,
         }
         if yandex_entity_ids:
-            selector_config["entity_ids"] = yandex_entity_ids
+            selector_config["include_entities"] = yandex_entity_ids
         source_selector = selector.EntitySelector(
             selector.EntitySelectorConfig(**selector_config)
         )
@@ -674,7 +674,7 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
             "multiple": False,
         }
         if yandex_entity_ids:
-            selector_config["entity_ids"] = yandex_entity_ids
+            selector_config["include_entities"] = yandex_entity_ids
         source_selector = selector.EntitySelector(
             selector.EntitySelectorConfig(**selector_config)
         )
