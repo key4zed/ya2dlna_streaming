@@ -89,6 +89,12 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             _LOGGER.info("Аддон не обнаружил Яндекс Станций")
                             return []
                         
+                        # Логируем полученные устройства для отладки
+                        ha_version = getattr(self.hass.config, "version", "unknown")
+                        _LOGGER.debug(f"Получено {len(devices)} устройств от аддона (HA {ha_version}):")
+                        for i, dev in enumerate(devices):
+                            _LOGGER.debug(f"  Устройство {i}: device_id={dev.get('device_id')}, name={dev.get('name')}, ip_address={dev.get('ip_address')}, host={dev.get('host')}, extra={dev.get('extra', {})}")
+                        
                         # Получить entity registry для определения интеграции
                         registry = entity_registry.async_get(self.hass)
                         yandex_entity_ids = []
@@ -107,25 +113,57 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 continue
                             # Попробуем сопоставить с устройствами от аддона
                             matched = False
+                            match_reason = ""
                             for dev in devices:
                                 # Сравниваем по friendly_name (name) или device_id (MAC)
                                 dev_name = dev.get("name", "").strip()
                                 dev_device_id = dev.get("device_id", "").strip()
+                                dev_ip = dev.get("ip_address", "").strip()
+                                dev_host = dev.get("host", "").strip()
                                 # Атрибуты сущности
                                 attrs = state.attributes
                                 entity_friendly_name = attrs.get("friendly_name", "")
                                 entity_device_id = attrs.get("device_id", "")
+                                entity_ip = attrs.get("ip_address", "")
                                 # Также можно посмотреть unique_id записи (обычно содержит MAC)
                                 entry_unique_id = entry.unique_id
-                                # Сравнение
-                                if (dev_device_id and (dev_device_id == entity_device_id or dev_device_id in entry_unique_id)):
-                                    matched = True
-                                    break
+                                # Сравнение по device_id (без учёта регистра)
+                                if dev_device_id:
+                                    dev_device_id_lower = dev_device_id.lower()
+                                    entity_device_id_lower = entity_device_id.lower() if entity_device_id else ""
+                                    entry_unique_id_lower = entry_unique_id.lower() if entry_unique_id else ""
+                                    if dev_device_id_lower == entity_device_id_lower:
+                                        matched = True
+                                        match_reason = f"device_id exact match {dev_device_id}"
+                                        break
+                                    if dev_device_id_lower in entry_unique_id_lower:
+                                        matched = True
+                                        match_reason = f"device_id in unique_id {dev_device_id}"
+                                        break
+                                # Сравнение по имени
                                 if dev_name and dev_name == entity_friendly_name:
                                     matched = True
+                                    match_reason = f"name {dev_name}"
+                                    break
+                                # Сравнение по IP адресу
+                                if dev_ip and entity_ip and dev_ip == entity_ip:
+                                    matched = True
+                                    match_reason = f"IP {dev_ip}"
+                                    break
+                                if dev_host and entity_ip and dev_host == entity_ip:
+                                    matched = True
+                                    match_reason = f"host {dev_host}"
+                                    break
+                                # Сравнение по host (может быть hostname)
+                                if dev_host and dev_host in entry_unique_id:
+                                    matched = True
+                                    match_reason = f"host in unique_id"
                                     break
                             if matched:
+                                _LOGGER.debug(f"Сопоставлено устройство {entry.entity_id} по {match_reason}")
                                 yandex_entity_ids.append(entry.entity_id)
+                            else:
+                                _LOGGER.debug(f"Не удалось сопоставить сущность {entry.entity_id} (friendly_name={entity_friendly_name}, device_id={entity_device_id}, ip={entity_ip}) с устройствами аддона")
                         
                         _LOGGER.info(f"Найдено {len(yandex_entity_ids)} Яндекс Станций в Home Assistant (из {len(devices)} обнаруженных аддоном)")
                         return yandex_entity_ids
@@ -286,9 +324,11 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Получить список DLNA-устройств от аддона
         if self.dlna_devices is None:
             self.dlna_devices = await self._fetch_dlna_devices()
+            _LOGGER.debug(f"Получено DLNA устройств: {len(self.dlna_devices)}")
         
         # Получить список Яндекс Станций от аддона и сопоставить с entity_id
         yandex_entity_ids = await self._fetch_yandex_stations()
+        _LOGGER.debug(f"Найдено Яндекс Станций в HA: {len(yandex_entity_ids)}")
         
         if user_input is not None:
             # Сохраняем данные
