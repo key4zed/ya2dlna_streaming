@@ -26,6 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the switch platform."""
+    _LOGGER.info(f"Загрузка платформы switch для entry {config_entry.entry_id}")
     # Настраиваем файловое логирование для отладки
     import os
     log_file = os.path.join(hass.config.config_dir, "custom_components", "ya2dlna", "ya2dlna.log")
@@ -54,12 +55,25 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     api_port = get_config(CONF_API_PORT, DEFAULT_API_PORT)
     source_entity = get_config(CONF_SOURCE_ENTITY)
     target_entity = get_config(CONF_TARGET_ENTITY)
+    _LOGGER.debug(f"Конфигурация: api_host={api_host}, api_port={api_port}, source_entity={source_entity}, target_entity={target_entity}")
     target_device_id = get_config(CONF_TARGET_DEVICE_ID)
     target_friendly_name = get_config(CONF_TARGET_FRIENDLY_NAME)
     x_token = get_config(CONF_X_TOKEN, "")
     cookie = get_config(CONF_COOKIE, "")
     ruark_pin = get_config(CONF_RUARK_PIN, "")
     mute_yandex_station = get_config(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
+
+    # Проверка обязательных параметров
+    missing = []
+    if not source_entity:
+        missing.append(CONF_SOURCE_ENTITY)
+    if not target_entity and not target_device_id:
+        missing.append("target (либо entity, либо device_id)")
+    if missing:
+        _LOGGER.error(f"Отсутствуют обязательные параметры конфигурации: {missing}. Свитчи не будут созданы.")
+        return
+
+    _LOGGER.info(f"Создание свитчей: source_entity={source_entity}, target_entity={target_entity}, target_device_id={target_device_id}, mute_yandex_station={mute_yandex_station}")
 
     # Создаём основной switch для управления стримингом
     streaming_switch = Ya2DLNASwitch(
@@ -87,6 +101,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     )
     
     async_add_entities([streaming_switch, mute_switch])
+    _LOGGER.info(f"Свитчи созданы и добавлены: streaming_switch={streaming_switch.name}, mute_switch={mute_switch.name}")
 
 
 class Ya2DLNASwitch(SwitchEntity):

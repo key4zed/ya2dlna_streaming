@@ -454,8 +454,8 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ],
             "multiple": False,
         }
-        if yandex_entity_ids:
-            selector_config["include_entities"] = yandex_entity_ids
+        # Не добавляем include_entities, чтобы избежать ошибки валидации
+        # Селектор будет показывать все Яндекс Станции, отфильтрованные по интеграции
         source_selector = selector.EntitySelector(
             selector.EntitySelectorConfig(**selector_config)
         )
@@ -673,8 +673,8 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
             ],
             "multiple": False,
         }
-        if yandex_entity_ids:
-            selector_config["include_entities"] = yandex_entity_ids
+        # Не добавляем include_entities, чтобы избежать ошибки валидации
+        # Селектор будет показывать все Яндекс Станции, отфильтрованные по интеграции
         source_selector = selector.EntitySelector(
             selector.EntitySelectorConfig(**selector_config)
         )
