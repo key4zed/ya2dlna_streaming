@@ -66,13 +66,13 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     api_port = get_config(CONF_API_PORT, DEFAULT_API_PORT)
     source_entity = get_config(CONF_SOURCE_ENTITY)
     target_entity = get_config(CONF_TARGET_ENTITY)
-    _LOGGER.debug(f"Конфигурация: api_host={api_host}, api_port={api_port}, source_entity={source_entity}, target_entity={target_entity}")
     target_device_id = get_config(CONF_TARGET_DEVICE_ID)
     target_friendly_name = get_config(CONF_TARGET_FRIENDLY_NAME)
     x_token = get_config(CONF_X_TOKEN, "")
     cookie = get_config(CONF_COOKIE, "")
     ruark_pin = get_config(CONF_RUARK_PIN, "")
     mute_yandex_station = get_config(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
+    _LOGGER.debug(f"Конфигурация: api_host={api_host}, api_port={api_port}, source_entity={source_entity}, target_entity={target_entity}, target_device_id={target_device_id}, target_friendly_name={target_friendly_name}, mute_yandex_station={mute_yandex_station}, enable_file_logging={enable_file_logging}")
 
     # Проверка обязательных параметров
     missing = []
@@ -350,7 +350,8 @@ class Ya2DLNASwitch(SwitchEntity):
             _LOGGER.error(f"Источник {self._source_entity} недоступен. Стриминг не запущен. (HA {self._ha_version})")
             return
         
-        if not await self._check_device_availability(self._target_entity):
+        # Проверять target_entity только если оно задано; если используется target_device_id, пропускаем проверку
+        if self._target_entity and not await self._check_device_availability(self._target_entity):
             _LOGGER.error(f"Приёмник {self._target_entity} недоступен. Стриминг не запущен. (HA {self._ha_version})")
             return
         
@@ -531,7 +532,11 @@ class Ya2DLNASwitch(SwitchEntity):
                 # автоматически выключаем переключатель
                 if self._state:
                     source_available = await self._check_device_availability(self._source_entity)
-                    target_available = await self._check_device_availability(self._target_entity)
+                    # Если target_entity задано, проверяем его доступность; иначе используем target_device_id и считаем доступным
+                    if self._target_entity:
+                        target_available = await self._check_device_availability(self._target_entity)
+                    else:
+                        target_available = True  # устройство управляется через аддон по device_id
                     if not source_available or not target_available:
                         _LOGGER.warning(
                             f"Переключатель включен, но устройства недоступны (источник: {source_available}, приёмник: {target_available}). "

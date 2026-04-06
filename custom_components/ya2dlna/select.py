@@ -60,6 +60,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     api_port = get_config(CONF_API_PORT, DEFAULT_API_PORT)
     target_device_id = get_config(CONF_TARGET_DEVICE_ID)
     target_friendly_name = get_config(CONF_TARGET_FRIENDLY_NAME)
+    _LOGGER.debug(f"Конфигурация select: api_host={api_host}, api_port={api_port}, target_device_id={target_device_id}, target_friendly_name={target_friendly_name}, enable_file_logging={enable_file_logging}")
 
     # Создаём select entity для выбора активного таргета
     select_entity = Ya2DLNASelect(

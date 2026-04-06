@@ -442,7 +442,9 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_MUTE_YANDEX_STATION: self.mute_yandex_station,
                     CONF_ENABLE_FILE_LOGGING: enable_file_logging,
                 }
-                _LOGGER.info(f"Creating config entry for Ya2DLNA (Home Assistant {ha_version})")
+                # Логируем данные конфигурации (без чувствительных полей)
+                safe_data = {k: v for k, v in data.items() if k not in [CONF_X_TOKEN, CONF_COOKIE, CONF_RUARK_PIN]}
+                _LOGGER.info(f"Creating config entry for Ya2DLNA (Home Assistant {ha_version}): {safe_data}")
                 return self.async_create_entry(title="Ya2DLNA Streaming", data=data)
             except KeyError as e:
                 _LOGGER.error(f"Missing key in user_input: {e} (Home Assistant {ha_version})")
@@ -647,6 +649,7 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
                 CONF_API_PORT: user_input.get(CONF_API_PORT, DEFAULT_API_PORT),
                 CONF_RUARK_PIN: user_input.get(CONF_RUARK_PIN, ""),
                 CONF_MUTE_YANDEX_STATION: user_input.get(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION),
+                CONF_ENABLE_FILE_LOGGING: user_input.get(CONF_ENABLE_FILE_LOGGING, DEFAULT_ENABLE_FILE_LOGGING),
             }
             _LOGGER.info(f"Updating options for Ya2DLNA (Home Assistant {ha_version})")
             return self.async_create_entry(title="", data=data)
@@ -667,6 +670,7 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
         current_api_port = get_value(CONF_API_PORT, DEFAULT_API_PORT)
         current_ruark_pin = get_value(CONF_RUARK_PIN, "")
         current_mute_yandex_station = get_value(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
+        current_enable_file_logging = get_value(CONF_ENABLE_FILE_LOGGING, DEFAULT_ENABLE_FILE_LOGGING)
 
         # Селектор для источника (Яндекс Станции)
         selector_config = {
@@ -699,9 +703,11 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
         # Схема данных
         fields = {
             vol.Required(CONF_SOURCE_ENTITY, default=current_source): source_selector,
+            vol.Optional(CONF_API_HOST, default=current_api_host): str,
             vol.Optional(CONF_API_PORT, default=current_api_port): int,
             vol.Optional(CONF_RUARK_PIN, default=current_ruark_pin): str,
             vol.Optional(CONF_MUTE_YANDEX_STATION, default=current_mute_yandex_station): bool,
+            vol.Optional(CONF_ENABLE_FILE_LOGGING, default=current_enable_file_logging): bool,
         }
         
         if device_options:
