@@ -133,10 +133,12 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             # Проверим, принадлежит ли сущность интеграции Yandex Station
                             # По platform (например, "yandex_station" или "yandex_station_intents")
                             if entry.platform not in YANDEX_STATION_DOMAINS:
+                                _LOGGER.debug(f"Сущность {entry.entity_id} пропущена, platform={entry.platform} не в {YANDEX_STATION_DOMAINS}")
                                 continue
                             # Получить состояние сущности для получения атрибутов
                             state = self.hass.states.get(entry.entity_id)
                             if not state:
+                                _LOGGER.debug(f"Сущность {entry.entity_id} не имеет состояния")
                                 continue
                             # Попробуем сопоставить с устройствами от аддона
                             matched = False
@@ -186,10 +188,10 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                     match_reason = f"host in unique_id"
                                     break
                             if matched:
-                                _LOGGER.debug(f"Сопоставлено устройство {entry.entity_id} по {match_reason}")
+                                _LOGGER.info(f"Сопоставлено устройство {entry.entity_id} по {match_reason} (platform={entry.platform})")
                                 yandex_entity_ids.append(entry.entity_id)
                             else:
-                                _LOGGER.debug(f"Не удалось сопоставить сущность {entry.entity_id} (friendly_name={entity_friendly_name}, device_id={entity_device_id}, ip={entity_ip}) с устройствами аддона")
+                                _LOGGER.info(f"Не удалось сопоставить сущность {entry.entity_id} (platform={entry.platform}, friendly_name={entity_friendly_name}, device_id={entity_device_id}, ip={entity_ip}) с устройствами аддона")
                         
                         _LOGGER.info(f"Найдено {len(yandex_entity_ids)} Яндекс Станций в Home Assistant (из {len(devices)} обнаруженных аддоном)")
                         return yandex_entity_ids
