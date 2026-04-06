@@ -4,16 +4,22 @@ import aiohttp
 import asyncio
 from homeassistant.components.select import SelectEntity
 from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.helpers.entity import DeviceInfo
 from .const import (
     DOMAIN,
     CONF_API_HOST,
     CONF_API_PORT,
     CONF_TARGET_DEVICE_ID,
     CONF_TARGET_FRIENDLY_NAME,
+    CONF_ENABLE_FILE_LOGGING,
     DEFAULT_API_HOST,
     DEFAULT_API_PORT,
+    DEFAULT_ENABLE_FILE_LOGGING,
     ATTR_ACTIVE_TARGET,
     ATTR_AVAILABLE_TARGETS,
+    DEVICE_MANUFACTURER,
+    DEVICE_MODEL,
+    DEVICE_NAME,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -21,9 +27,34 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the select platform."""
+    _LOGGER.info(f"Загрузка платформы select для entry {config_entry.entry_id}")
     # Получаем объединённые данные: сначала options, потом data
     def get_config(key, default=None):
         return config_entry.options.get(key, config_entry.data.get(key, default))
+    
+    # Проверяем, включено ли файловое логирование
+    enable_file_logging = get_config(CONF_ENABLE_FILE_LOGGING, DEFAULT_ENABLE_FILE_LOGGING)
+    _LOGGER.info(f"Файловое логирование: {'включено' if enable_file_logging else 'отключено'}")
+    
+    # Настраиваем файловое логирование для отладки, если включено
+    if enable_file_logging:
+        import os
+        log_file = os.path.join(hass.config.config_dir, "custom_components", "ya2dlna", "ya2dlna.log")
+        try:
+            # Создаём директорию если её нет
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            # Добавляем FileHandler к логгеру интеграции
+            file_handler = logging.FileHandler(log_file, encoding="utf-8")
+            file_handler.setLevel(logging.DEBUG)
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S"
+            )
+            file_handler.setFormatter(formatter)
+            _LOGGER.addHandler(file_handler)
+            _LOGGER.info(f"Файловое логирование включено: {log_file}")
+        except Exception as e:
+            _LOGGER.error(f"Не удалось настроить файловое логирование: {e}")
     
     api_host = get_config(CONF_API_HOST, DEFAULT_API_HOST)
     api_port = get_config(CONF_API_PORT, DEFAULT_API_PORT)
@@ -59,11 +90,12 @@ class Ya2DLNASelect(SelectEntity):
         self._attr_name = "Ya2DLNA Active Target"
         self._attr_unique_id = f"{entry_id}_active_target"
         self._attr_icon = "mdi:speaker"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry_id)},
-            "name": "Ya2DLNA Streaming",
-            "manufacturer": "Ya2DLNA",
-        }
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+            manufacturer=DEVICE_MANUFACTURER,
+            model=DEVICE_MODEL,
+            name=DEVICE_NAME,
+        )
 
     async def async_added_to_hass(self):
         """Run when entity about to be added."""

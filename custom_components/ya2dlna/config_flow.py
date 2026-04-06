@@ -19,9 +19,11 @@ from .const import (
     CONF_MUTE_YANDEX_STATION,
     CONF_TARGET_DEVICE_ID,
     CONF_TARGET_FRIENDLY_NAME,
+    CONF_ENABLE_FILE_LOGGING,
     DEFAULT_API_HOST,
     DEFAULT_API_PORT,
     DEFAULT_MUTE_YANDEX_STATION,
+    DEFAULT_ENABLE_FILE_LOGGING,
     AUTH_METHOD_YANDEX_STATION,
     AUTH_METHOD_COOKIES,
     AUTH_METHOD_TOKEN,
@@ -407,7 +409,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 
                 # Определяем выбранное DLNA-устройство
                 selected_device = user_input.get(CONF_TARGET_DEVICE_ID)
-                if selected_device and selected_device != "manual":
+                if selected_device:
                     # Найти friendly_name по device_id
                     friendly_name = None
                     for device_id, name in self.dlna_devices:
@@ -418,11 +420,13 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     self.target_friendly_name = friendly_name or selected_device
                     self.target_entity = ""  # очищаем старый entity
                 else:
-                    # Ручной ввод (запасной вариант)
-                    self.target_entity = user_input.get(CONF_TARGET_ENTITY, "")
+                    # Если устройств нет (не должно происходить, т.к. поле обязательно)
                     self.target_device_id = ""
                     self.target_friendly_name = ""
+                    self.target_entity = ""
 
+                # Получить значение enable_file_logging из user_input
+                enable_file_logging = user_input.get(CONF_ENABLE_FILE_LOGGING, DEFAULT_ENABLE_FILE_LOGGING)
                 # Создаём финальную запись
                 data = {
                     CONF_AUTH_METHOD: self.auth_method,
@@ -436,6 +440,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_API_PORT: self.api_port,
                     CONF_RUARK_PIN: self.ruark_pin,
                     CONF_MUTE_YANDEX_STATION: self.mute_yandex_station,
+                    CONF_ENABLE_FILE_LOGGING: enable_file_logging,
                 }
                 _LOGGER.info(f"Creating config entry for Ya2DLNA (Home Assistant {ha_version})")
                 return self.async_create_entry(title="Ya2DLNA Streaming", data=data)
@@ -465,7 +470,6 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if self.dlna_devices:
             for device_id, friendly_name in self.dlna_devices:
                 device_options.append((device_id, friendly_name))
-        device_options.append(("manual", "Ввести entity_id вручную"))
         
         # Схема данных
         fields = {
@@ -473,18 +477,17 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional(CONF_API_PORT, default=self.api_port): int,
             vol.Optional(CONF_RUARK_PIN, default=""): str,
             vol.Optional(CONF_MUTE_YANDEX_STATION, default=DEFAULT_MUTE_YANDEX_STATION): bool,
+            vol.Optional(CONF_ENABLE_FILE_LOGGING, default=DEFAULT_ENABLE_FILE_LOGGING): bool,
         }
         
         if device_options:
             fields[vol.Required(CONF_TARGET_DEVICE_ID, default=device_options[0][0])] = vol.In(dict(device_options))
         else:
-            # Если устройств нет, показываем только ручной ввод
-            fields[vol.Required(CONF_TARGET_ENTITY)] = str
+            # Если устройств нет, показываем ошибку
+            errors["base"] = "no_dlna_devices"
+            _LOGGER.error("Не обнаружено DLNA-устройств. Убедитесь, что аддон запущен и устройства доступны в сети.")
         
-        # Добавляем поле для ручного ввода entity_id (скрытое по умолчанию)
-        # Будем показывать только если выбрано "manual"
-        # Пока просто добавим как optional
-        fields[vol.Optional(CONF_TARGET_ENTITY, default="")] = str
+        # Поле target_entity удалено из интерфейса
         
         data_schema = vol.Schema(fields)
 

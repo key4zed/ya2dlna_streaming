@@ -34,3 +34,12 @@ PLATFORM_SELECT = "select"
 # Атрибуты
 ATTR_ACTIVE_TARGET = "active_target"
 ATTR_AVAILABLE_TARGETS = "available_targets"
+
+# Устройство
+DEVICE_MANUFACTURER = "Ya2DLNA"
+DEVICE_MODEL = "Streaming Adapter"
+DEVICE_NAME = "Ya2DLNA Streaming"
+
+# Логирование
+CONF_ENABLE_FILE_LOGGING = "enable_file_logging"
+DEFAULT_ENABLE_FILE_LOGGING = True

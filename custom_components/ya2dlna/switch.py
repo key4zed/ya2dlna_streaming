@@ -4,6 +4,7 @@ import aiohttp
 import asyncio
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.helpers.entity import DeviceInfo
 from .const import (
     DOMAIN,
     CONF_API_HOST,
@@ -16,9 +17,14 @@ from .const import (
     CONF_MUTE_YANDEX_STATION,
     CONF_TARGET_DEVICE_ID,
     CONF_TARGET_FRIENDLY_NAME,
+    CONF_ENABLE_FILE_LOGGING,
     DEFAULT_API_HOST,
     DEFAULT_API_PORT,
     DEFAULT_MUTE_YANDEX_STATION,
+    DEFAULT_ENABLE_FILE_LOGGING,
+    DEVICE_MANUFACTURER,
+    DEVICE_MODEL,
+    DEVICE_NAME,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,28 +33,33 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the switch platform."""
     _LOGGER.info(f"Загрузка платформы switch для entry {config_entry.entry_id}")
-    # Настраиваем файловое логирование для отладки
-    import os
-    log_file = os.path.join(hass.config.config_dir, "custom_components", "ya2dlna", "ya2dlna.log")
-    try:
-        # Создаём директорию если её нет
-        os.makedirs(os.path.dirname(log_file), exist_ok=True)
-        # Добавляем FileHandler к логгеру интеграции
-        file_handler = logging.FileHandler(log_file, encoding="utf-8")
-        file_handler.setLevel(logging.DEBUG)
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
-        )
-        file_handler.setFormatter(formatter)
-        _LOGGER.addHandler(file_handler)
-        _LOGGER.info(f"Файловое логирование включено: {log_file}")
-    except Exception as e:
-        _LOGGER.error(f"Не удалось настроить файловое логирование: {e}")
-    
     # Получаем объединённые данные: сначала options, потом data
     def get_config(key, default=None):
         return config_entry.options.get(key, config_entry.data.get(key, default))
+    
+    # Проверяем, включено ли файловое логирование
+    enable_file_logging = get_config(CONF_ENABLE_FILE_LOGGING, DEFAULT_ENABLE_FILE_LOGGING)
+    _LOGGER.info(f"Файловое логирование: {'включено' if enable_file_logging else 'отключено'}")
+    
+    # Настраиваем файловое логирование для отладки, если включено
+    if enable_file_logging:
+        import os
+        log_file = os.path.join(hass.config.config_dir, "custom_components", "ya2dlna", "ya2dlna.log")
+        try:
+            # Создаём директорию если её нет
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            # Добавляем FileHandler к логгеру интеграции
+            file_handler = logging.FileHandler(log_file, encoding="utf-8")
+            file_handler.setLevel(logging.DEBUG)
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S"
+            )
+            file_handler.setFormatter(formatter)
+            _LOGGER.addHandler(file_handler)
+            _LOGGER.info(f"Файловое логирование включено: {log_file}")
+        except Exception as e:
+            _LOGGER.error(f"Не удалось настроить файловое логирование: {e}")
     
     # API host теперь настраивается пользователем
     api_host = get_config(CONF_API_HOST, DEFAULT_API_HOST)
@@ -126,6 +137,13 @@ class Ya2DLNASwitch(SwitchEntity):
         self._attr_unique_id = f"ya2dlna_switch_{entry_id}"
         # Сохраняем версию Home Assistant для логирования
         self._ha_version = getattr(hass.config, "version", "unknown")
+        # Устройство для группировки сущностей
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+            manufacturer=DEVICE_MANUFACTURER,
+            model=DEVICE_MODEL,
+            name=DEVICE_NAME,
+        )
 
     @property
     def is_on(self):
@@ -548,6 +566,13 @@ class Ya2DLNAMuteSwitch(SwitchEntity):
         self._attr_name = "Ya2DLNA Mute Station"
         self._attr_unique_id = f"ya2dlna_mute_switch_{entry_id}"
         self._ha_version = getattr(hass.config, "version", "unknown")
+        # Устройство для группировки сущностей (то же самое, что и у основного свитча)
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+            manufacturer=DEVICE_MANUFACTURER,
+            model=DEVICE_MODEL,
+            name=DEVICE_NAME,
+        )
     
     @property
     def is_on(self):
