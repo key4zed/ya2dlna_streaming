@@ -127,12 +127,11 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 entity_ip = attrs.get("ip_address", "")
                                 # Также можно посмотреть unique_id записи (обычно содержит MAC)
                                 entry_unique_id = entry.unique_id
-                                # Сравнение по device_id (без учёта регистра)
+                                # Сравнение по device_id (без учёта регистра) с unique_id записи
                                 if dev_device_id:
                                     dev_device_id_lower = dev_device_id.lower()
-                                    entity_device_id_lower = entity_device_id.lower() if entity_device_id else ""
                                     entry_unique_id_lower = entry_unique_id.lower() if entry_unique_id else ""
-                                    if dev_device_id_lower == entity_device_id_lower:
+                                    if dev_device_id_lower == entry_unique_id_lower:
                                         matched = True
                                         match_reason = f"device_id exact match {dev_device_id}"
                                         break
