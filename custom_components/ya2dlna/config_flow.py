@@ -455,7 +455,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception(f"Unexpected error in config step: {e} (Home Assistant {ha_version})")
                 errors["base"] = "unknown_error"
 
-        # Селектор для источника (Яндекс Станции)
+        # Селектор для источника (Яндекс Станции) - ограничиваем только сопоставленными сущностями
         selector_config = {
             "filter": [
                 {"domain": "media_player", "integration": "yandex_station"},
@@ -463,8 +463,13 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ],
             "multiple": False,
         }
-        # Не добавляем include_entities, чтобы избежать ошибки валидации
-        # Селектор будет показывать все Яндекс Станции, отфильтрованные по интеграции
+        # Если есть сопоставленные сущности, ограничиваем список ими
+        if yandex_entity_ids:
+            selector_config["include_entities"] = yandex_entity_ids
+            _LOGGER.info(f"Ограничение выбора источника {len(yandex_entity_ids)} сущностями: {yandex_entity_ids}")
+        else:
+            _LOGGER.warning("Нет сопоставленных Яндекс Станций. Селектор покажет все сущности интеграции (может быть пусто).")
+        
         source_selector = selector.EntitySelector(
             selector.EntitySelectorConfig(**selector_config)
         )
