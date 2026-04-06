@@ -182,12 +182,12 @@ class Ya2DLNASwitch(SwitchEntity):
             # Для Яндекс Станций: атрибут host или ip_address
             if domain == "media_player" and "yandex_station" in entity_id:
                 ip_address = state.attributes.get("host") or state.attributes.get("ip_address")
-                _LOGGER.debug(f"Яндекс Станция {entity_id}: host={state.attributes.get('host')}, ip_address={state.attributes.get('ip_address')} -> ip_address={ip_address}")
+                _LOGGER.debug(f"Яндекс Станция: entity_id={entity_id}, host={state.attributes.get('host')}, ip_address={state.attributes.get('ip_address')}, resolved_ip={ip_address}")
             # Для DLNA устройств: извлекаем из ssdp_location или host
             elif domain == "media_player" and ("dlna" in entity_id.lower() or state.attributes.get("ssdp_location")):
                 # Пробуем извлечь IP из ssdp_location (URL)
                 ssdp_location = state.attributes.get("ssdp_location")
-                _LOGGER.debug(f"DLNA устройство {entity_id}: ssdp_location={ssdp_location}")
+                _LOGGER.debug(f"DLNA устройство: entity_id={entity_id}, ssdp_location={ssdp_location}")
                 if ssdp_location:
                     try:
                         from urllib.parse import urlparse
@@ -206,7 +206,7 @@ class Ya2DLNASwitch(SwitchEntity):
             # Для других устройств
             else:
                 ip_address = state.attributes.get("host") or state.attributes.get("ip_address")
-                _LOGGER.debug(f"Другое устройство {entity_id}: host={state.attributes.get('host')}, ip_address={state.attributes.get('ip_address')} -> ip_address={ip_address}")
+                _LOGGER.debug(f"Устройство: entity_id={entity_id}, host={state.attributes.get('host')}, ip_address={state.attributes.get('ip_address')}, resolved_ip={ip_address}")
             
             if ip_address:
                 info["ip_address"] = ip_address
@@ -214,7 +214,7 @@ class Ya2DLNASwitch(SwitchEntity):
             
             # Извлекаем MAC адрес(ы)
             mac_address = state.attributes.get("mac_address")
-            _LOGGER.debug(f"MAC адрес из атрибута mac_address для {entity_id}: {mac_address}")
+            _LOGGER.debug(f"MAC адрес: entity_id={entity_id}, mac_address={mac_address}")
             if mac_address:
                 if isinstance(mac_address, list):
                     info["mac_addresses"] = [self._normalize_mac(m) for m in mac_address]
@@ -230,7 +230,7 @@ class Ya2DLNASwitch(SwitchEntity):
                 for attr in ["mac_address_ethernet", "mac_address_wifi", "mac_address_wireless"]:
                     mac = state.attributes.get(attr)
                     if mac:
-                        _LOGGER.debug(f"Найден MAC адрес в атрибуте {attr}: {mac}")
+                        _LOGGER.debug(f"MAC адрес: entity_id={entity_id}, attribute={attr}, mac={mac}")
                         if isinstance(mac, list):
                             mac_addresses.extend([self._normalize_mac(m) for m in mac])
                         else:

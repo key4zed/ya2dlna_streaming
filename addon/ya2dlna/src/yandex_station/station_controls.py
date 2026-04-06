@@ -54,7 +54,7 @@ class YandexStationControls:
 
     async def send_text(self, text: str):
         """Отправка текстового сообщения"""
-        logger.debug(f"🔊 Отправка текстового сообщения: {text}")
+        logger.debug(f"Отправка текста: text={text}")
         try:
             await self._ws_client.send_command(
                 {"command": "sendText", "text": text}
@@ -156,8 +156,7 @@ class YandexStationControls:
             state = await self._ws_client.get_latest_message()
             if state:
                 logger.debug(
-                    f"🔊 Получение текущего уровня громкости Алиcы: "
-                    f"{state.get('state', {}).get('volume', {})}"
+                    f"Громкость Алисы: value={state.get('state', {}).get('volume', {})}"
                 )
                 return state.get("state", {}).get("volume", {})
         except Exception as e:
@@ -175,7 +174,7 @@ class YandexStationControls:
 
     async def set_volume(self, volume: float):
         """Установка уровня громкости"""
-        logger.debug(f"🔊 Установка громкости на {volume}")
+        logger.debug(f"Установка громкости: volume={volume}")
         try:
             await self._ws_client.send_command(
                 {
