@@ -380,22 +380,22 @@ class Ya2DLNASwitch(SwitchEntity):
                 if self._mute_yandex_station is not None:
                     params["mute_yandex_station"] = str(self._mute_yandex_station).lower()
                 stream_url = f"http://{self._api_host}:{self._api_port}/ha/stream/start"
-                _LOGGER.debug(f"Starting stream via {stream_url} with params {params}")
+                _LOGGER.debug(f"Запуск стриминга через {stream_url} с параметрами {params}")
                 resp = await session.post(
                     stream_url,
                     params=params if params else None,
                 )
                 response_text = await resp.text()
                 if resp.status not in (200, 201, 204):
-                    _LOGGER.error(f"Failed to start streaming: {resp.status} (HA {self._ha_version}). Ответ: {response_text}")
+                    _LOGGER.error(f"Не удалось запустить стриминг: {resp.status} (HA {self._ha_version}). Ответ: {response_text}")
                 else:
                     self._state = True
                     self.async_write_ha_state()
-                    _LOGGER.info("Ya2DLNA streaming started")
+                    _LOGGER.info("Стриминг Ya2DLNA запущен")
         except asyncio.TimeoutError:
-            _LOGGER.error(f"Timeout while starting streaming (HA {self._ha_version})")
+            _LOGGER.error(f"Таймаут при запуске стриминга (HA {self._ha_version})")
         except Exception as e:
-            _LOGGER.error(f"Failed to start streaming to {self._api_host}:{self._api_port} (HA {self._ha_version}): {e}")
+            _LOGGER.error(f"Не удалось запустить стриминг на {self._api_host}:{self._api_port} (HA {self._ha_version}): {e}")
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
@@ -407,18 +407,18 @@ class Ya2DLNASwitch(SwitchEntity):
             headers = {"X-Home-Assistant-Version": self._ha_version}
             async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
                 stop_url = f"http://{self._api_host}:{self._api_port}/ha/stream/stop"
-                _LOGGER.debug(f"Stopping stream via {stop_url}")
+                _LOGGER.debug(f"Остановка стриминга через {stop_url}")
                 resp = await session.post(stop_url)
                 if resp.status not in (200, 201, 204):
-                    _LOGGER.warning(f"Failed to stop streaming: {resp.status} (HA {self._ha_version})")
+                    _LOGGER.warning(f"Не удалось остановить стриминг: {resp.status} (HA {self._ha_version})")
                 else:
                     self._state = False
                     self.async_write_ha_state()
-                    _LOGGER.info("Ya2DLNA streaming stopped")
+                    _LOGGER.info("Стриминг Ya2DLNA остановлен")
         except asyncio.TimeoutError:
-            _LOGGER.error("Timeout while stopping streaming")
+            _LOGGER.error("Таймаут при остановке стриминга")
         except Exception as e:
-            _LOGGER.error(f"Failed to stop streaming to {self._api_host}:{self._api_port}: {e}")
+            _LOGGER.error(f"Не удалось остановить стриминг на {self._api_host}:{self._api_port}: {e}")
 
     def _update_config_from_entry(self):
         """Обновить конфигурацию из текущей записи конфигурации."""
@@ -457,14 +457,23 @@ class Ya2DLNASwitch(SwitchEntity):
             timeout = aiohttp.ClientTimeout(total=10)
             headers = {"X-Home-Assistant-Version": self._ha_version}
             async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+                # Проверить доступность сервера перед выполнением операций
+                if not await self._check_server_availability(session):
+                    _LOGGER.debug(f"Сервер Ya2DLNA недоступен по адресу {self._api_host}:{self._api_port}. Переключатель выключен.")
+                    self._state = False
+                    self.async_write_ha_state()
+                    return
+                
                 status_url = f"http://{self._api_host}:{self._api_port}/ha/stream/status"
-                _LOGGER.debug(f"Polling status via {status_url}")
+                _LOGGER.debug(f"Опрос статуса через {status_url}")
                 async with session.get(status_url) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         self._state = data.get("status") == "streaming"
                     else:
-                        _LOGGER.debug(f"Status endpoint returned {resp.status}")
+                        _LOGGER.debug(f"Эндпоинт статуса вернул {resp.status}")
+                        # Если ответ не 200, считаем что стриминг не активен
+                        self._state = False
                 
                 # Дополнительная проверка: если переключатель включен, но устройства недоступны,
                 # автоматически выключаем переключатель
@@ -477,11 +486,19 @@ class Ya2DLNASwitch(SwitchEntity):
                             "Автоматически выключаем переключатель."
                         )
                         self._state = False
-                        self.async_write_ha_state()
+                # Если переключатель выключен, но ранее был включен, состояние уже False
+                # Обновляем состояние сущности
+                self.async_write_ha_state()
         except asyncio.TimeoutError:
-            _LOGGER.debug("Timeout while updating switch state")
+            _LOGGER.debug("Таймаут при обновлении состояния переключателя")
+            # Аддон не отвечает, выключаем переключатель
+            self._state = False
+            self.async_write_ha_state()
         except Exception as e:
-            _LOGGER.debug(f"Could not update switch state from {self._api_host}:{self._api_port}: {e}")
+            _LOGGER.debug(f"Не удалось обновить состояние переключателя с {self._api_host}:{self._api_port}: {e}")
+            # Любая другая ошибка - выключаем
+            self._state = False
+            self.async_write_ha_state()
 
 
 class Ya2DLNAMuteSwitch(SwitchEntity):

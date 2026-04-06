@@ -127,7 +127,7 @@ class DeviceManager:
                 )
                 renderers.append(renderer)
                 self._devices[renderer.device_id] = renderer
-                logger.info(f"Добавлено DLNA устройство: {device.friendly_name} ({device.udn})")
+                logger.debug(f"Добавлено DLNA устройство: {device.friendly_name} ({device.udn})")
             except Exception as e:
                 logger.error(f"Ошибка при обработке DLNA устройства {device.friendly_name}: {e}", exc_info=True)
                 continue

@@ -85,11 +85,11 @@ class DLNAController:
             logger.info(f"Найдено {len(devices)} устройств")
             for device in devices:
                 try:
-                    logger.info(
+                    logger.debug(
                         f"Проверяем устройство: {device.friendly_name}"
                     )
                     if device_name in device.friendly_name:
-                        logger.info(
+                        logger.debug(
                             "Найдено подходящее устройство: "
                             f"{device.friendly_name}"
                         )

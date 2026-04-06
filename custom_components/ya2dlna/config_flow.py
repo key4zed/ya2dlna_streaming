@@ -5,7 +5,7 @@ import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
-from homeassistant.helpers import selector
+from homeassistant.helpers import selector, entity_registry
 from .const import (
     DOMAIN,
     CONF_API_HOST,
@@ -74,6 +74,69 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return []
         except Exception as e:
             _LOGGER.error(f"Неизвестная ошибка: {e}")
+            return []
+
+    async def _fetch_yandex_stations(self) -> list:
+        """Запросить список Яндекс Станций у аддона и вернуть entity_id."""
+        url = f"http://{self.api_host}:{self.api_port}/ha/devices/yandex"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=10) as resp:
+                    if resp.status == 200:
+                        devices = await resp.json()
+                        # devices - список объектов YandexStation с полями device_id, name, ip_address, mac_addresses и т.д.
+                        if not devices:
+                            _LOGGER.info("Аддон не обнаружил Яндекс Станций")
+                            return []
+                        
+                        # Получить entity registry для определения интеграции
+                        registry = entity_registry.async_get(self.hass)
+                        yandex_entity_ids = []
+                        
+                        # Пройти по всем сущностям media_player
+                        for entry in registry.entities.values():
+                            if entry.domain != "media_player":
+                                continue
+                            # Проверим, принадлежит ли сущность интеграции Yandex Station
+                            # По platform (например, "yandex_station" или "yandex_station_intents")
+                            if entry.platform not in YANDEX_STATION_DOMAINS:
+                                continue
+                            # Получить состояние сущности для получения атрибутов
+                            state = self.hass.states.get(entry.entity_id)
+                            if not state:
+                                continue
+                            # Попробуем сопоставить с устройствами от аддона
+                            matched = False
+                            for dev in devices:
+                                # Сравниваем по friendly_name (name) или device_id (MAC)
+                                dev_name = dev.get("name", "").strip()
+                                dev_device_id = dev.get("device_id", "").strip()
+                                # Атрибуты сущности
+                                attrs = state.attributes
+                                entity_friendly_name = attrs.get("friendly_name", "")
+                                entity_device_id = attrs.get("device_id", "")
+                                # Также можно посмотреть unique_id записи (обычно содержит MAC)
+                                entry_unique_id = entry.unique_id
+                                # Сравнение
+                                if (dev_device_id and (dev_device_id == entity_device_id or dev_device_id in entry_unique_id)):
+                                    matched = True
+                                    break
+                                if dev_name and dev_name == entity_friendly_name:
+                                    matched = True
+                                    break
+                            if matched:
+                                yandex_entity_ids.append(entry.entity_id)
+                        
+                        _LOGGER.info(f"Найдено {len(yandex_entity_ids)} Яндекс Станций в Home Assistant (из {len(devices)} обнаруженных аддоном)")
+                        return yandex_entity_ids
+                    else:
+                        _LOGGER.error(f"Ошибка при запросе Яндекс Станций: {resp.status}")
+                        return []
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            _LOGGER.error(f"Не удалось подключиться к аддону: {e}")
+            return []
+        except Exception as e:
+            _LOGGER.error(f"Неизвестная ошибка при сопоставлении Яндекс Станций: {e}")
             return []
 
     async def async_step_user(self, user_input=None):
@@ -224,6 +287,9 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if self.dlna_devices is None:
             self.dlna_devices = await self._fetch_dlna_devices()
         
+        # Получить список Яндекс Станций от аддона и сопоставить с entity_id
+        yandex_entity_ids = await self._fetch_yandex_stations()
+        
         if user_input is not None:
             # Сохраняем данные
             self.source_entity = user_input[CONF_SOURCE_ENTITY]
@@ -268,14 +334,17 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(title="Ya2DLNA Streaming", data=data)
 
         # Селектор для источника (Яндекс Станции)
+        selector_config = {
+            "filter": [
+                {"domain": "media_player", "integration": "yandex_station"},
+                {"domain": "media_player", "integration": "yandex_station_intents"},
+            ],
+            "multiple": False,
+        }
+        if yandex_entity_ids:
+            selector_config["entity_ids"] = yandex_entity_ids
         source_selector = selector.EntitySelector(
-            selector.EntitySelectorConfig(
-                filter=[
-                    {"domain": "media_player", "integration": "yandex_station"},
-                    {"domain": "media_player", "integration": "yandex_station_intents"},
-                ],
-                multiple=False,
-            )
+            selector.EntitySelectorConfig(**selector_config)
         )
         
         # Подготовить опции для выбора DLNA-устройств
@@ -354,6 +423,69 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
             _LOGGER.error(f"Не удалось подключиться к аддону: {e}")
             return []
 
+    async def _fetch_yandex_stations(self) -> list:
+        """Запросить список Яндекс Станций у аддона и вернуть entity_id."""
+        config_data = self._ya2dlna_config_entry.data
+        config_options = self._ya2dlna_config_entry.options
+        def get_value(key, default=None):
+            return config_options.get(key, config_data.get(key, default))
+        api_host = get_value(CONF_API_HOST, DEFAULT_API_HOST)
+        api_port = get_value(CONF_API_PORT, DEFAULT_API_PORT)
+        url = f"http://{api_host}:{api_port}/ha/devices/yandex"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=10) as resp:
+                    if resp.status == 200:
+                        devices = await resp.json()
+                        if not devices:
+                            _LOGGER.info("Аддон не обнаружил Яндекс Станций")
+                            return []
+                        
+                        # Получить entity registry для определения интеграции
+                        registry = entity_registry.async_get(self.hass)
+                        yandex_entity_ids = []
+                        
+                        # Пройти по всем сущностям media_player
+                        for entry in registry.entities.values():
+                            if entry.domain != "media_player":
+                                continue
+                            # Проверим, принадлежит ли сущность интеграции Yandex Station
+                            if entry.platform not in YANDEX_STATION_DOMAINS:
+                                continue
+                            # Получить состояние сущности для получения атрибутов
+                            state = self.hass.states.get(entry.entity_id)
+                            if not state:
+                                continue
+                            # Попробуем сопоставить с устройствами от аддона
+                            matched = False
+                            for dev in devices:
+                                dev_name = dev.get("name", "").strip()
+                                dev_device_id = dev.get("device_id", "").strip()
+                                attrs = state.attributes
+                                entity_friendly_name = attrs.get("friendly_name", "")
+                                entity_device_id = attrs.get("device_id", "")
+                                entry_unique_id = entry.unique_id
+                                if (dev_device_id and (dev_device_id == entity_device_id or dev_device_id in entry_unique_id)):
+                                    matched = True
+                                    break
+                                if dev_name and dev_name == entity_friendly_name:
+                                    matched = True
+                                    break
+                            if matched:
+                                yandex_entity_ids.append(entry.entity_id)
+                        
+                        _LOGGER.info(f"Найдено {len(yandex_entity_ids)} Яндекс Станций в Home Assistant (из {len(devices)} обнаруженных аддоном)")
+                        return yandex_entity_ids
+                    else:
+                        _LOGGER.error(f"Ошибка при запросе Яндекс Станций: {resp.status}")
+                        return []
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            _LOGGER.error(f"Не удалось подключиться к аддону: {e}")
+            return []
+        except Exception as e:
+            _LOGGER.error(f"Неизвестная ошибка при сопоставлении Яндекс Станций: {e}")
+            return []
+
     async def async_step_init(self, user_input=None):
         """Manage the options."""
         ha_version = getattr(self.hass.config, "version", "unknown")
@@ -363,6 +495,9 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
         # Получить список DLNA-устройств от аддона
         if self.dlna_devices is None:
             self.dlna_devices = await self._fetch_dlna_devices()
+        
+        # Получить список Яндекс Станций от аддона и сопоставить с entity_id
+        yandex_entity_ids = await self._fetch_yandex_stations()
         
         if user_input is not None:
             # Определяем выбранное DLNA-устройство
@@ -418,14 +553,17 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
         current_mute_yandex_station = get_value(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
 
         # Селектор для источника (Яндекс Станции)
+        selector_config = {
+            "filter": [
+                {"domain": "media_player", "integration": "yandex_station"},
+                {"domain": "media_player", "integration": "yandex_station_intents"},
+            ],
+            "multiple": False,
+        }
+        if yandex_entity_ids:
+            selector_config["entity_ids"] = yandex_entity_ids
         source_selector = selector.EntitySelector(
-            selector.EntitySelectorConfig(
-                filter=[
-                    {"domain": "media_player", "integration": "yandex_station"},
-                    {"domain": "media_player", "integration": "yandex_station_intents"},
-                ],
-                multiple=False,
-            )
+            selector.EntitySelectorConfig(**selector_config)
         )
         
         # Подготовить опции для выбора DLNA-устройств

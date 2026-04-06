@@ -52,7 +52,7 @@ class DeviceFinder(ServiceListener):
                 "port": info.port,
             }
             self.devices.append(device)
-            logger.debug(f"Добавлена Яндекс Станция: {device}")
+            logger.debug(f"Яндекс Станция: device_id={device['device_id']}, platform={device['platform']}, host={device['host']}, port={device['port']}")
 
         except Exception as e:
             logger.error(f"Error: {e}")

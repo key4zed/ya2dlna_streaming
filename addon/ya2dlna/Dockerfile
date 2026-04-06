@@ -29,6 +29,12 @@ RUN echo '#!/bin/sh' > /etc/cont-init.d/01-setup-env && \
     echo '' >> /etc/cont-init.d/01-setup-env && \
     echo 'echo "=== Running s6-overlay init script ==="' >> /etc/cont-init.d/01-setup-env && \
     echo '' >> /etc/cont-init.d/01-setup-env && \
+    echo '# Очистка старых логов' >> /etc/cont-init.d/01-setup-env && \
+    echo 'echo "=== Очистка старых логов ==="' >> /etc/cont-init.d/01-setup-env && \
+    echo 'rm -rf /app/logs/* 2>/dev/null || true' >> /etc/cont-init.d/01-setup-env && \
+    echo 'mkdir -p /app/logs' >> /etc/cont-init.d/01-setup-env && \
+    echo 'echo "Логи очищены"' >> /etc/cont-init.d/01-setup-env && \
+    echo '' >> /etc/cont-init.d/01-setup-env && \
     echo '# Установка значений по умолчанию для переменных, если они пусты' >> /etc/cont-init.d/01-setup-env && \
     echo ': ${local_server_port_dlna:=8001}' >> /etc/cont-init.d/01-setup-env && \
     echo ': ${local_server_port_api:=8000}' >> /etc/cont-init.d/01-setup-env && \

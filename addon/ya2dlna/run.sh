@@ -3,6 +3,12 @@ set -e
 
 echo "=== Starting run.sh ==="
 
+# Очистка старых логов
+echo "=== Очистка старых логов ==="
+rm -rf /app/logs/* 2>/dev/null || true
+mkdir -p /app/logs
+echo "Логи очищены"
+
 # Установка значений по умолчанию для переменных, если они пусты
 : ${local_server_port_dlna:=8001}
 : ${local_server_port_api:=8000}

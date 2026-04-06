@@ -1,7 +1,7 @@
 import asyncio
 import json
 from logging import getLogger
-from typing import Union, Dict, Any
+from typing import Union, Dict, Any, Optional
 
 from injector import inject
 
@@ -54,7 +54,7 @@ class YandexStationControls:
 
     async def send_text(self, text: str):
         """Отправка текстового сообщения"""
-        logger.info(f"🔊 Отправка текстового сообщения: {text}")
+        logger.debug(f"🔊 Отправка текстового сообщения: {text}")
         try:
             await self._ws_client.send_command(
                 {"command": "sendText", "text": text}
@@ -155,7 +155,7 @@ class YandexStationControls:
         try:
             state = await self._ws_client.get_latest_message()
             if state:
-                logger.info(
+                logger.debug(
                     f"🔊 Получение текущего уровня громкости Алиcы: "
                     f"{state.get('state', {}).get('volume', {})}"
                 )
@@ -169,13 +169,13 @@ class YandexStationControls:
         logger.info("🔊 Установка громкости по умолчанию")
         try:
             self._volume = await self.get_volume()
-            logger.info(f"Громкость по умолчанию: {self._volume}")
+            logger.debug(f"Громкость по умолчанию: {self._volume}")
         except Exception as e:
             logger.error(f"❌ Ошибка при установке громкости по умолчанию: {e}")
 
     async def set_volume(self, volume: float):
         """Установка уровня громкости"""
-        logger.info(f"🔊 Установка громкости на {volume}")
+        logger.debug(f"🔊 Установка громкости на {volume}")
         try:
             await self._ws_client.send_command(
                 {
@@ -222,7 +222,7 @@ class YandexStationControls:
         """Плавное отключение звука станции с задержкой"""
         if self._was_muted:
             return
-        logger.info(f"🎧 Ждём {FADE_TIME}s перед mute станции")
+        logger.debug(f"🎧 Ждём {FADE_TIME}s перед mute станции")
         await asyncio.sleep(FADE_TIME)
         await self.mute()
 
@@ -235,13 +235,13 @@ class YandexStationControls:
         """Плавное уменьшение громкости Алисы в несколько шагов"""
         if self._was_muted:
             return
-        logger.info(f"🎧 Ждём {FADE_TIME}s перед fade out громкости")
+        logger.debug(f"🎧 Ждём {FADE_TIME}s перед fade out громкости")
         await asyncio.sleep(FADE_TIME)
         self._volume = await self.get_volume()
         start_volume = self._volume
         volume = round(start_volume - (start_volume % step), 1)
 
-        logger.info(
+        logger.debug(
             f"🔉 Плавное снижение громкости Алисы: "
             f"{volume:.1f} ➝ {min_volume:.1f} шагом {step}")
 
@@ -249,7 +249,7 @@ class YandexStationControls:
             v = volume
             while v > min_volume:
                 await self.set_volume(round(v, 1))
-                logger.info(f"  ➤ Устанавливаем громкость: {v:.1f}")
+                logger.debug(f"  ➤ Устанавливаем громкость: {v:.1f}")
                 v -= step
                 await asyncio.sleep(delay)
 
