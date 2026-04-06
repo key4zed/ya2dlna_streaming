@@ -29,7 +29,32 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Домены интеграций Yandex Station, которые мы можем использовать для импорта
+# Флаг, чтобы не добавлять FileHandler несколько раз
+_FILE_HANDLER_ADDED = False
+
+def _setup_file_logging(hass):
+    """Настроить файловое логирование для интеграции."""
+    global _FILE_HANDLER_ADDED
+    if _FILE_HANDLER_ADDED:
+        return
+    try:
+        import os
+        log_file = os.path.join(hass.config.config_dir, "custom_components", "ya2dlna", "ya2dlna.log")
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        file_handler.setFormatter(formatter)
+        _LOGGER.addHandler(file_handler)
+        _FILE_HANDLER_ADDED = True
+        _LOGGER.info(f"Файловое логирование включено: {log_file}")
+    except Exception as e:
+        _LOGGER.error(f"Не удалось настроить файловое логирование: {e}")
+
+# Домены интеграций Yandex Station, которые мы могут использовать для импорта
 YANDEX_STATION_DOMAINS = ["yandex_station", "yandex_station_intents"]
 
 
@@ -178,6 +203,8 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step: choose authentication method."""
+        # Настроить файловое логирование при первом шаге
+        _setup_file_logging(self.hass)
         ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Config flow step 'user' (Home Assistant {ha_version})")
         errors = {}
@@ -213,30 +240,43 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_yandex_station(self, user_input=None):
         """Handle selection of Yandex Station integration."""
+        # Настроить файловое логирование
+        _setup_file_logging(self.hass)
         ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Config flow step 'yandex_station' (Home Assistant {ha_version})")
         errors = {}
         if user_input is not None:
-            # user_input содержит выбранную интеграцию (например, entry_id)
-            entry_id = user_input["entry"]
-            entry = self.hass.config_entries.async_get_entry(entry_id)
-            if entry:
-                self.x_token = entry.data.get("x_token", "")
-                self.cookie = entry.data.get("cookie", "")
-                # Проверим, что хотя бы что-то есть
-                if not self.x_token and not self.cookie:
-                    errors["base"] = "no_auth_data"
-                    _LOGGER.error(f"No auth data in selected Yandex Station entry (Home Assistant {ha_version})")
+            try:
+                # user_input содержит выбранную интеграцию (например, entry_id)
+                entry_id = user_input["entry"]
+                entry = self.hass.config_entries.async_get_entry(entry_id)
+                if entry:
+                    self.x_token = entry.data.get("x_token", "")
+                    self.cookie = entry.data.get("cookie", "")
+                    # Проверим, что хотя бы что-то есть
+                    if not self.x_token and not self.cookie:
+                        errors["base"] = "no_auth_data"
+                        _LOGGER.error(f"No auth data in selected Yandex Station entry (Home Assistant {ha_version})")
+                    else:
+                        return await self.async_step_config()
                 else:
-                    return await self.async_step_config()
-            else:
-                errors["base"] = "entry_not_found"
-                _LOGGER.error(f"Selected Yandex Station entry not found (Home Assistant {ha_version})")
+                    errors["base"] = "entry_not_found"
+                    _LOGGER.error(f"Selected Yandex Station entry not found (Home Assistant {ha_version})")
+            except KeyError as e:
+                _LOGGER.error(f"Missing key in user_input: {e} (Home Assistant {ha_version})")
+                errors["base"] = "invalid_input"
+            except Exception as e:
+                _LOGGER.exception(f"Unexpected error in yandex_station step: {e} (Home Assistant {ha_version})")
+                errors["base"] = "unknown_error"
 
         # Соберём все записи Yandex Station
         yandex_entries = []
-        for domain in YANDEX_STATION_DOMAINS:
-            yandex_entries.extend(self.hass.config_entries.async_entries(domain))
+        try:
+            for domain in YANDEX_STATION_DOMAINS:
+                yandex_entries.extend(self.hass.config_entries.async_entries(domain))
+        except Exception as e:
+            _LOGGER.exception(f"Error while fetching Yandex Station entries: {e} (Home Assistant {ha_version})")
+            errors["base"] = "fetch_error"
 
         if not yandex_entries:
             # Нет интеграций, переключим на метод cookies с уведомлением
@@ -259,6 +299,8 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_cookies(self, user_input=None):
         """Handle input of cookies."""
+        # Настроить файловое логирование
+        _setup_file_logging(self.hass)
         ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Config flow step 'cookies' (Home Assistant {ha_version})")
         errors = {}
@@ -268,14 +310,21 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             description_placeholders["note"] = "Интеграции Yandex.Station не найдены. Пожалуйста, введите cookie вручную."
 
         if user_input is not None:
-            cookie = user_input[CONF_COOKIE]
-            if not cookie.strip():
-                errors["base"] = "invalid_cookie"
-                _LOGGER.error(f"Invalid cookie provided (Home Assistant {ha_version})")
-            else:
-                self.cookie = cookie
-                self.x_token = ""
-                return await self.async_step_config()
+            try:
+                cookie = user_input[CONF_COOKIE]
+                if not cookie.strip():
+                    errors["base"] = "invalid_cookie"
+                    _LOGGER.error(f"Invalid cookie provided (Home Assistant {ha_version})")
+                else:
+                    self.cookie = cookie
+                    self.x_token = ""
+                    return await self.async_step_config()
+            except KeyError as e:
+                _LOGGER.error(f"Missing key in user_input: {e} (Home Assistant {ha_version})")
+                errors["base"] = "invalid_input"
+            except Exception as e:
+                _LOGGER.exception(f"Unexpected error in cookies step: {e} (Home Assistant {ha_version})")
+                errors["base"] = "unknown_error"
 
         data_schema = vol.Schema({
             vol.Required(CONF_COOKIE): str,
@@ -290,18 +339,27 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_token(self, user_input=None):
         """Handle input of x-token."""
+        # Настроить файловое логирование
+        _setup_file_logging(self.hass)
         ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Config flow step 'token' (Home Assistant {ha_version})")
         errors = {}
         if user_input is not None:
-            x_token = user_input[CONF_X_TOKEN]
-            if not x_token.strip():
-                errors["base"] = "invalid_token"
-                _LOGGER.error(f"Invalid x-token provided (Home Assistant {ha_version})")
-            else:
-                self.x_token = x_token
-                self.cookie = ""
-                return await self.async_step_config()
+            try:
+                x_token = user_input[CONF_X_TOKEN]
+                if not x_token.strip():
+                    errors["base"] = "invalid_token"
+                    _LOGGER.error(f"Invalid x-token provided (Home Assistant {ha_version})")
+                else:
+                    self.x_token = x_token
+                    self.cookie = ""
+                    return await self.async_step_config()
+            except KeyError as e:
+                _LOGGER.error(f"Missing key in user_input: {e} (Home Assistant {ha_version})")
+                errors["base"] = "invalid_input"
+            except Exception as e:
+                _LOGGER.exception(f"Unexpected error in token step: {e} (Home Assistant {ha_version})")
+                errors["base"] = "unknown_error"
 
         data_schema = vol.Schema({
             vol.Required(CONF_X_TOKEN): str,
@@ -316,61 +374,77 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_config(self, user_input=None):
         """Handle configuration of devices and API."""
+        # Настроить файловое логирование
+        _setup_file_logging(self.hass)
         ha_version = getattr(self.hass.config, "version", "unknown")
         _LOGGER.info(f"Config flow step 'config' (Home Assistant {ha_version})")
         errors = {}
         
-        # Получить список DLNA-устройств от аддона
-        if self.dlna_devices is None:
-            self.dlna_devices = await self._fetch_dlna_devices()
-            _LOGGER.debug(f"Получено DLNA устройств: {len(self.dlna_devices)}")
-        
-        # Получить список Яндекс Станций от аддона и сопоставить с entity_id
-        yandex_entity_ids = await self._fetch_yandex_stations()
-        _LOGGER.debug(f"Найдено Яндекс Станций в HA: {len(yandex_entity_ids)}")
+        try:
+            # Получить список DLNA-устройств от аддона
+            if self.dlna_devices is None:
+                self.dlna_devices = await self._fetch_dlna_devices()
+                _LOGGER.debug(f"Получено DLNA устройств: {len(self.dlna_devices)}")
+            
+            # Получить список Яндекс Станций от аддона и сопоставить с entity_id
+            yandex_entity_ids = await self._fetch_yandex_stations()
+            _LOGGER.debug(f"Найдено Яндекс Станций в HA: {len(yandex_entity_ids)}")
+        except Exception as e:
+            _LOGGER.exception(f"Ошибка при получении устройств от аддона: {e} (Home Assistant {ha_version})")
+            errors["base"] = "fetch_devices_error"
+            yandex_entity_ids = []
+            if self.dlna_devices is None:
+                self.dlna_devices = []
         
         if user_input is not None:
-            # Сохраняем данные
-            self.source_entity = user_input[CONF_SOURCE_ENTITY]
-            self.api_host = user_input.get(CONF_API_HOST, DEFAULT_API_HOST)
-            self.api_port = user_input.get(CONF_API_PORT, DEFAULT_API_PORT)
-            self.ruark_pin = user_input.get(CONF_RUARK_PIN, "")
-            self.mute_yandex_station = user_input.get(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
-            
-            # Определяем выбранное DLNA-устройство
-            selected_device = user_input.get(CONF_TARGET_DEVICE_ID)
-            if selected_device and selected_device != "manual":
-                # Найти friendly_name по device_id
-                friendly_name = None
-                for device_id, name in self.dlna_devices:
-                    if device_id == selected_device:
-                        friendly_name = name
-                        break
-                self.target_device_id = selected_device
-                self.target_friendly_name = friendly_name or selected_device
-                self.target_entity = ""  # очищаем старый entity
-            else:
-                # Ручной ввод (запасной вариант)
-                self.target_entity = user_input.get(CONF_TARGET_ENTITY, "")
-                self.target_device_id = ""
-                self.target_friendly_name = ""
+            try:
+                # Сохраняем данные
+                self.source_entity = user_input[CONF_SOURCE_ENTITY]
+                self.api_host = user_input.get(CONF_API_HOST, DEFAULT_API_HOST)
+                self.api_port = user_input.get(CONF_API_PORT, DEFAULT_API_PORT)
+                self.ruark_pin = user_input.get(CONF_RUARK_PIN, "")
+                self.mute_yandex_station = user_input.get(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
+                
+                # Определяем выбранное DLNA-устройство
+                selected_device = user_input.get(CONF_TARGET_DEVICE_ID)
+                if selected_device and selected_device != "manual":
+                    # Найти friendly_name по device_id
+                    friendly_name = None
+                    for device_id, name in self.dlna_devices:
+                        if device_id == selected_device:
+                            friendly_name = name
+                            break
+                    self.target_device_id = selected_device
+                    self.target_friendly_name = friendly_name or selected_device
+                    self.target_entity = ""  # очищаем старый entity
+                else:
+                    # Ручной ввод (запасной вариант)
+                    self.target_entity = user_input.get(CONF_TARGET_ENTITY, "")
+                    self.target_device_id = ""
+                    self.target_friendly_name = ""
 
-            # Создаём финальную запись
-            data = {
-                CONF_AUTH_METHOD: self.auth_method,
-                CONF_X_TOKEN: self.x_token,
-                CONF_COOKIE: self.cookie,
-                CONF_SOURCE_ENTITY: self.source_entity,
-                CONF_TARGET_ENTITY: self.target_entity,
-                CONF_TARGET_DEVICE_ID: self.target_device_id,
-                CONF_TARGET_FRIENDLY_NAME: self.target_friendly_name,
-                CONF_API_HOST: self.api_host,
-                CONF_API_PORT: self.api_port,
-                CONF_RUARK_PIN: self.ruark_pin,
-                CONF_MUTE_YANDEX_STATION: self.mute_yandex_station,
-            }
-            _LOGGER.info(f"Creating config entry for Ya2DLNA (Home Assistant {ha_version})")
-            return self.async_create_entry(title="Ya2DLNA Streaming", data=data)
+                # Создаём финальную запись
+                data = {
+                    CONF_AUTH_METHOD: self.auth_method,
+                    CONF_X_TOKEN: self.x_token,
+                    CONF_COOKIE: self.cookie,
+                    CONF_SOURCE_ENTITY: self.source_entity,
+                    CONF_TARGET_ENTITY: self.target_entity,
+                    CONF_TARGET_DEVICE_ID: self.target_device_id,
+                    CONF_TARGET_FRIENDLY_NAME: self.target_friendly_name,
+                    CONF_API_HOST: self.api_host,
+                    CONF_API_PORT: self.api_port,
+                    CONF_RUARK_PIN: self.ruark_pin,
+                    CONF_MUTE_YANDEX_STATION: self.mute_yandex_station,
+                }
+                _LOGGER.info(f"Creating config entry for Ya2DLNA (Home Assistant {ha_version})")
+                return self.async_create_entry(title="Ya2DLNA Streaming", data=data)
+            except KeyError as e:
+                _LOGGER.error(f"Missing key in user_input: {e} (Home Assistant {ha_version})")
+                errors["base"] = "invalid_input"
+            except Exception as e:
+                _LOGGER.exception(f"Unexpected error in config step: {e} (Home Assistant {ha_version})")
+                errors["base"] = "unknown_error"
 
         # Селектор для источника (Яндекс Станции)
         selector_config = {

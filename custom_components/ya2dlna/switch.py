@@ -26,6 +26,25 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the switch platform."""
+    # Настраиваем файловое логирование для отладки
+    import os
+    log_file = os.path.join(hass.config.config_dir, "custom_components", "ya2dlna", "ya2dlna.log")
+    try:
+        # Создаём директорию если её нет
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        # Добавляем FileHandler к логгеру интеграции
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        file_handler.setFormatter(formatter)
+        _LOGGER.addHandler(file_handler)
+        _LOGGER.info(f"Файловое логирование включено: {log_file}")
+    except Exception as e:
+        _LOGGER.error(f"Не удалось настроить файловое логирование: {e}")
+    
     # Получаем объединённые данные: сначала options, потом data
     def get_config(key, default=None):
         return config_entry.options.get(key, config_entry.data.get(key, default))
