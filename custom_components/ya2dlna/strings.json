@@ -38,7 +38,7 @@
           "ruark_pin": "PIN для Ruark R5 (опционально)",
           "mute_yandex_station": "Отключать звук на Яндекс Станции во время трансляции"
         },
-        "description": "Настройка устройств и параметров API.",
+        "description": "Настройка устройств и параметров API.\n\nДокументация API (Swagger) доступна по адресу http://<api_host>:<api_port>/docs после настройки. OpenAPI спецификацию можно скачать по адресу http://<api_host>:<api_port>/openapi.yaml",
         "title": "Настройка устройств"
       }
     },
