@@ -389,7 +389,6 @@ class DeviceManager:
             ip_address=None,
             mac_addresses=None,
             platform=None,
-            extra=None,
         )
 
     def set_active_source_with_details(

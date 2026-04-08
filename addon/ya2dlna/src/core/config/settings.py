@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     stream_is_local_file: bool = False  # Скачивать треки локально перед стримингом (для отладки)
     yandex_music_timeout: int = 15  # Таймаут запросов к API Яндекс.Музыки (в секундах)
     yandex_music_cache_ttl: int = 300  # Время жизни кэша треков (в секундах)
+    
+    # Отладочное логирование
+    debug: bool = Field(
+        False,
+        description="Включить отладочное логирование.",
+    )
 
 
 settings = Settings()

@@ -15,8 +15,10 @@ ports:
 map:
   - config:rw
 logo: "logo.png"
-options: {}
-schema: {}
+options:
+  debug: false
+schema:
+  debug: bool
 
 build_from:
   aarch64: ghcr.io/home-assistant/aarch64-base:latest
