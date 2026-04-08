@@ -1,5 +1,7 @@
 import asyncio
 import ipaddress
+import re
+import subprocess
 from logging import getLogger
 from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass, field
@@ -16,6 +18,54 @@ from dlna_stream_server.handlers.dlna_controller import DLNAController
 from yandex_station.mdns_device_finder import DeviceFinder
 
 logger = getLogger(__name__)
+
+
+def get_mac_address(ip_address: str) -> Optional[str]:
+    """
+    Получить MAC-адрес по IP-адресу, используя ARP-таблицу.
+    
+    Args:
+        ip_address: IP-адрес устройства
+        
+    Returns:
+        MAC-адрес в формате "aa:bb:cc:dd:ee:ff" или None, если не найден
+    """
+    if not ip_address:
+        return None
+    
+    try:
+        # Чтение ARP-таблицы из /proc/net/arp
+        with open('/proc/net/arp', 'r') as f:
+            lines = f.readlines()
+        
+        # Пропускаем заголовок
+        for line in lines[1:]:
+            parts = line.split()
+            if len(parts) >= 4:
+                ip = parts[0]
+                mac = parts[3]
+                if ip == ip_address and mac != '00:00:00:00:00:00':
+                    return mac.lower()
+    except Exception as e:
+        logger.debug(f"Не удалось прочитать ARP-таблицу для IP {ip_address}: {e}")
+    
+    # Альтернативный метод: использование команды arp
+    try:
+        import subprocess
+        result = subprocess.run(['arp', '-n', ip_address], capture_output=True, text=True, timeout=2)
+        if result.returncode == 0:
+            # Ищем MAC-адрес в выводе
+            lines = result.stdout.split('\n')
+            for line in lines:
+                if ip_address in line:
+                    # Разбираем строку вида "192.168.1.1 ether aa:bb:cc:dd:ee:ff"
+                    match = re.search(r'([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})', line)
+                    if match:
+                        return match.group(0).lower()
+    except Exception as e:
+        logger.debug(f"Не удалось выполнить команду arp для IP {ip_address}: {e}")
+    
+    return None
 
 
 class DeviceEventType(str, Enum):
@@ -67,6 +117,17 @@ class DeviceManager:
         for device in devices:
             host = device.get("host", "")
             logger.debug(f"Найдена Яндекс Станция: host={host}, device={device}")
+            
+            # Получаем MAC-адрес по IP
+            mac_addresses = []
+            if host:
+                mac = get_mac_address(host)
+                if mac:
+                    mac_addresses.append(mac)
+                    logger.debug(f"Найден MAC-адрес для Яндекс Станции {host}: {mac}")
+                else:
+                    logger.debug(f"MAC-адрес для Яндекс Станции {host} не найден")
+            
             station = YandexStation(
                 device_id=device.get("device_id", "unknown"),
                 name=f"Yandex Station {device.get('platform', 'unknown')}",
@@ -74,7 +135,7 @@ class DeviceManager:
                 host=host,
                 port=device.get("port", 0),
                 ip_address=host,  # Используем host как IP адрес
-                mac_addresses=[],  # MAC адреса Яндекс Станций пока не получаем
+                mac_addresses=mac_addresses,
                 extra=device,
                 platform=device.get("platform", "unknown"),
             )
@@ -113,6 +174,16 @@ class DeviceManager:
                 parsed = urllib.parse.urlparse(location)
                 ip_address = parsed.hostname if parsed.hostname else ""
                 
+                # Получаем MAC-адрес по IP
+                mac_addresses = []
+                if ip_address:
+                    mac = get_mac_address(ip_address)
+                    if mac:
+                        mac_addresses.append(mac)
+                        logger.debug(f"Найден MAC-адрес для DLNA устройства {ip_address}: {mac}")
+                    else:
+                        logger.debug(f"MAC-адрес для DLNA устройства {ip_address} не найден")
+                
                 renderer = DlnaRenderer(
                     device_id=device.udn,
                     name=device.friendly_name,
@@ -120,7 +191,7 @@ class DeviceManager:
                     host=ip_address,
                     port=parsed.port or 80,
                     ip_address=ip_address,
-                    mac_addresses=[],  # MAC адреса DLNA устройств пока не получаем
+                    mac_addresses=mac_addresses,
                     extra={"location": location},
                     renderer_url=location,
                     friendly_name=device.friendly_name,
