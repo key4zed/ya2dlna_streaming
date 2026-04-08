@@ -5,7 +5,6 @@ from typing import Optional
 import aiohttp
 from injector import inject
 
-from core.authorization.token_storage import token_storage
 from core.config.settings import settings
 from core.device_manager import DeviceManager, DeviceEvent, DeviceEventType
 from dlna_stream_server.handlers.dlna_controller import DLNAController
@@ -39,14 +38,12 @@ class MainStreamManager:
         self._dlna_controls = dlna_controls
         self._yandex_music_api = yandex_music_api
         self._device_manager = device_manager
-        self._stream_server_url = settings.local_server_host
+        self._stream_server_url = "0.0.0.0"  # Фиксированный хост для стрим-сервера
         self._dlna_volume = 0
         self._stream_state_running = False
         self._tasks: list[asyncio.Task] = []
         self._device_monitoring_task: Optional[asyncio.Task] = None
         # Параметры стриминга, передаваемые через API
-        self._current_x_token: Optional[str] = None
-        self._current_cookie: Optional[str] = None
         self._current_ruark_pin: Optional[str] = None
         self._current_mute_yandex_station: bool = True
         # Подписываемся на события устройств
@@ -58,29 +55,18 @@ class MainStreamManager:
 
     def set_streaming_params(
         self,
-        x_token: Optional[str] = None,
-        cookie: Optional[str] = None,
         ruark_pin: Optional[str] = None,
         mute_yandex_station: bool = True,
     ) -> None:
         """Установить параметры стриминга, переданные через API."""
-        self._current_x_token = x_token
-        self._current_cookie = cookie
         self._current_ruark_pin = ruark_pin
         self._current_mute_yandex_station = mute_yandex_station
-        
-        # Сохраняем токены в глобальное хранилище для использования в других модулях
-        if x_token is not None:
-            token_storage.x_token = x_token
-        if cookie is not None:
-            token_storage.cookie = cookie
         
         # Устанавливаем PIN в DLNA контроллере
         if hasattr(self._dlna_controls, 'set_ruark_pin'):
             self._dlna_controls.set_ruark_pin(ruark_pin)
         
-        logger.info(f"Параметры стриминга установлены: x_token={'***' if x_token else None}, "
-                   f"cookie={'***' if cookie else None}, ruark_pin={'***' if ruark_pin else None}, "
+        logger.info(f"Параметры стриминга установлены: ruark_pin={'***' if ruark_pin else None}, "
                    f"mute_yandex_station={mute_yandex_station}")
 
     def _handle_device_event(self, event: DeviceEvent) -> None:
@@ -410,7 +396,7 @@ class MainStreamManager:
                 logger.info(f"🎵 Отправляем трек на стрим сервер: {track_url}")
                 async with session.post(
                     f"http://{self._stream_server_url}:"
-                    f"{settings.local_server_port_dlna}/set_stream",
+                    f"8001/set_stream",  # Фиксированный порт DLNA сервера
                     params={"yandex_url": track_url, "radio": str(radio).lower()},
                 ) as resp:
                     response = await resp.json()
@@ -444,7 +430,7 @@ class MainStreamManager:
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"http://{self._stream_server_url}:"
-                f"{settings.local_server_port_dlna}/stop_stream"
+                f"8001/stop_stream"  # Фиксированный порт DLNA сервера
             ) as resp:
                 response = await resp.json()
                 logger.info(f"Ответ от стрим сервера: {response.get('message')}")

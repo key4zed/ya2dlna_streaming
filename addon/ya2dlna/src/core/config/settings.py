@@ -27,42 +27,11 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
     )
 
-    # API server settings
-    local_server_host: str = Field(
-        "0.0.0.0",
-        description="Хост, на котором будет запущен сервер стриминга.",
-    )
-    local_server_port_dlna: int = Field(
-        8001,
-        ge=1,
-        le=65535,
-        description="Порт DLNA‑сервера (для трансляции потока).",
-    )
-    local_server_port_api: int = Field(
-        8000,
-        ge=1,
-        le=65535,
-        description="Порт REST API (для управления).",
-    )
-
-    # Mode settings
-    debug: bool = Field(
-        False,
-        description="Включить отладочное логирование.",
-    )
 
     # Яндекс авторизация
     ya_music_token: str = Field(
         "",
         description="Токен Яндекс.Музыки (OAuth).",
-    )
-    x_token: str = Field(
-        "",
-        description="X‑Token для авторизации Яндекс.Станции.",
-    )
-    cookie: str = Field(
-        "",
-        description="Cookie для авторизации Яндекс.Станции.",
     )
     ruark_pin: str = Field(
         "",
@@ -78,28 +47,6 @@ class Settings(BaseSettings):
     stream_is_local_file: bool = False  # Скачивать треки локально перед стримингом (для отладки)
     yandex_music_timeout: int = 15  # Таймаут запросов к API Яндекс.Музыки (в секундах)
     yandex_music_cache_ttl: int = 300  # Время жизни кэша треков (в секундах)
-    dlna_device_name: str = ""  # Имя DLNA устройства (если пустое, используется "DLNA Renderer")
-
-    @field_validator("local_server_port_dlna", mode="before")
-    @classmethod
-    def validate_local_server_port_dlna(cls, v: Any) -> Any:
-        if isinstance(v, str) and v.strip() == "":
-            return 8001  # значение по умолчанию
-        return v
-
-    @field_validator("local_server_port_api", mode="before")
-    @classmethod
-    def validate_local_server_port_api(cls, v: Any) -> Any:
-        if isinstance(v, str) and v.strip() == "":
-            return 8000  # значение по умолчанию
-        return v
-
-    @field_validator("debug", mode="before")
-    @classmethod
-    def validate_debug(cls, v: Any) -> Any:
-        if isinstance(v, str) and v.strip() == "":
-            return False  # значение по умолчанию
-        return v
 
 
 settings = Settings()

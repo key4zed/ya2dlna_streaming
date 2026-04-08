@@ -21,8 +21,8 @@ def main():
     logger.info("▶️ Запуск dlna стримингового сервера...")
     uvicorn.run(
         app,
-        host=settings.local_server_host,
-        port=settings.local_server_port_dlna,
+        host="0.0.0.0",  # Фиксированный хост для DLNA сервера
+        port=8001,  # Фиксированный порт для DLNA сервера
     )
 
 

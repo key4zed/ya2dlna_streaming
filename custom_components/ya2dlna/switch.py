@@ -234,8 +234,7 @@ class Ya2DLNASwitch(SwitchEntity):
                 "mac_addresses": [],
                 "platform": "",
                 "friendly_name": "",
-                "renderer_url": "",
-                "extra": {}
+                "renderer_url": ""
             }
             
             _LOGGER.debug(f"Начинаем сбор информации об устройстве {entity_id} (domain: {domain}) (HA {self._ha_version})")
@@ -320,32 +319,6 @@ class Ya2DLNASwitch(SwitchEntity):
             if renderer_url:
                 info["renderer_url"] = renderer_url
             
-            # Дополнительные атрибуты
-            extra = {}
-            if domain:
-                extra["domain"] = domain
-            
-            # Добавляем manufacturer и model если есть
-            manufacturer = state.attributes.get("manufacturer")
-            if manufacturer:
-                extra["manufacturer"] = manufacturer
-            model = state.attributes.get("model")
-            if model:
-                extra["model"] = model
-            
-            # Добавляем device_id если есть (для Яндекс Станций)
-            device_id = state.attributes.get("device_id") or state.attributes.get("unique_id")
-            if device_id:
-                extra["device_id"] = device_id
-            
-            # Добавляем информацию о типе устройства
-            if "yandex_station" in entity_id.lower() or platform:
-                extra["device_type"] = "yandex_station"
-            elif "dlna" in entity_id.lower() or renderer_url:
-                extra["device_type"] = "dlna_renderer"
-            
-            info["extra"] = extra
-            
             _LOGGER.debug(f"Информация об устройстве {entity_id}: {info}")
             return info
         except Exception as e:
@@ -413,12 +386,8 @@ class Ya2DLNASwitch(SwitchEntity):
                     device_id = self._target_device_id
                     # Создаём информацию об устройстве на основе сохранённых данных
                     target_info = {
-                        "device_id": device_id,
+                        "entity_id": device_id,
                         "friendly_name": self._target_friendly_name or "",
-                        "extra": {
-                            "device_type": "dlna_renderer",
-                            "source": "ha_integration"
-                        }
                     }
                     target_url = f"http://{self._api_host}:{self._api_port}/ha/target/{device_id}"
                 else:

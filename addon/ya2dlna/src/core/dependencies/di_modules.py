@@ -108,8 +108,8 @@ class DLNAControllerModule(Module):
     def provide_dlna_controller(
         self,
     ) -> DLNAController:
-        # Используем имя устройства из настроек, если указано, иначе "DLNA Renderer"
-        device_name = settings.dlna_device_name or "DLNA Renderer"
+        # Используем фиксированное имя устройства "DLNA Renderer"
+        device_name = "DLNA Renderer"
         # PIN для Ruark R5 теперь передаётся только через API при запуске стриминга
         # По умолчанию используем универсальный DLNA‑контроллер
         return DLNAController(device_name=device_name)

@@ -19,88 +19,6 @@ from main_stream_service.main_stream_manager import MainStreamManager
 logger = getLogger(__name__)
 
 
-class SetSourceRequest(BaseModel):
-    """Модель запроса для установки источника."""
-    entity_id: str = Field(
-        example="media_player.yandex_station_123",
-        description="Entity ID Яндекс Станции в Home Assistant"
-    )
-    ip_address: Optional[str] = Field(
-        default=None,
-        example="192.168.1.100",
-        description="IP адрес устройства в локальной сети"
-    )
-    mac_addresses: Optional[List[str]] = Field(
-        default=None,
-        example=["aa:bb:cc:dd:ee:ff"],
-        description="Список MAC адресов устройства"
-    )
-    platform: Optional[str] = Field(
-        default=None,
-        example="yandex_station",
-        description="Платформа интеграции (например, yandex_station)"
-    )
-    extra: Optional[Dict[str, Any]] = Field(
-        default=None,
-        example={"room": "living_room", "volume": 50},
-        description="Дополнительные произвольные данные"
-    )
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "entity_id": "media_player.yandex_station_123",
-                "ip_address": "192.168.1.100",
-                "mac_addresses": ["aa:bb:cc:dd:ee:ff"],
-                "platform": "yandex_station",
-                "extra": {"room": "living_room"}
-            }
-        }
-
-
-class SetTargetRequest(BaseModel):
-    """Модель запроса для установки приёмника."""
-    entity_id: str = Field(
-        example="media_player.dlna_renderer_456",
-        description="Entity ID DLNA-рендерера в Home Assistant"
-    )
-    ip_address: Optional[str] = Field(
-        default=None,
-        example="192.168.1.200",
-        description="IP адрес устройства в локальной сети"
-    )
-    mac_addresses: Optional[List[str]] = Field(
-        default=None,
-        example=["11:22:33:44:55:66"],
-        description="Список MAC адресов устройства"
-    )
-    friendly_name: Optional[str] = Field(
-        default=None,
-        example="Living Room Speaker",
-        description="Человекочитаемое имя устройства"
-    )
-    renderer_url: Optional[str] = Field(
-        default=None,
-        example="http://192.168.1.200:49152/description.xml",
-        description="URL DLNA-рендерера для управления"
-    )
-    extra: Optional[Dict[str, Any]] = Field(
-        default=None,
-        example={"manufacturer": "Sonos", "model": "Play:5"},
-        description="Дополнительные произвольные данные"
-    )
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "entity_id": "media_player.dlna_renderer_456",
-                "ip_address": "192.168.1.200",
-                "mac_addresses": ["11:22:33:44:55:66"],
-                "friendly_name": "Living Room Speaker",
-                "renderer_url": "http://192.168.1.200:49152/description.xml",
-                "extra": {"manufacturer": "Sonos"}
-            }
-        }
 
 
 router = APIRouter(prefix="/ha", tags=["home_assistant"])
@@ -180,18 +98,14 @@ async def list_dlna_renderers(request: Request):
 async def set_source(
     device_id: str,
     request: Request,
-    request_body: Optional[SetSourceRequest] = None,
 ):
     """Установить активный источник звука (Яндекс Станция).
 
     Устанавливает активный источник для стриминга. Источником может быть Яндекс Станция,
-    обнаруженная в сети. Устройство можно указать двумя способами:
-    1. Через path parameter `device_id` (простой способ, если device_id известен).
-    2. Через JSON body с подробными данными (entity_id, IP, MAC и т.д.) для точного сопоставления.
+    обнаруженная в сети. Устройство указывается через path parameter `device_id`.
 
     Параметры:
-    - `device_id`: ID устройства, полученный из списка устройств (используется, если не передан JSON body).
-    - `request_body`: (опционально) Объект SetSourceRequest с дополнительными данными для поиска устройства.
+    - `device_id`: ID устройства, полученный из списка устройств.
 
     Ответ:
     - 200: Успешно, возвращает сообщение об установке источника.
@@ -199,40 +113,20 @@ async def set_source(
     - 500: Внутренняя ошибка сервера.
     """
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
-    
-    # Определяем entity_id: если передан JSON body, используем его, иначе device_id из пути
-    if request_body is not None:
-        entity_id = request_body.entity_id
-        ip_address = request_body.ip_address
-        mac_addresses = request_body.mac_addresses
-        platform = request_body.platform
-        extra = request_body.extra
-        logger.info(f"Установка источника через JSON: {entity_id} (HA {ha_version})")
-    else:
-        entity_id = device_id
-        ip_address = None
-        mac_addresses = None
-        platform = None
-        extra = None
-        logger.info(f"Установка источника через path: {device_id} (HA {ha_version})")
-    
+    device_id_normalized = device_id.upper()
+    logger.info(f"Установка источника через path: {device_id_normalized} (HA {ha_version})")
+
     try:
         # Принудительно обновляем список устройств перед поиском
         await device_manager.discover_all()
-        
-        # Используем улучшенный метод set_active_source_with_details
-        success = device_manager.set_active_source_with_details(
-            entity_id=entity_id,
-            ip_address=ip_address,
-            mac_addresses=mac_addresses,
-            platform=platform,
-            extra=extra,
-        )
+
+        # Используем метод set_active_source
+        success = device_manager.set_active_source(device_id_normalized)
         if not success:
-            logger.warning(f"Устройство {entity_id} не найдено или не является Яндекс Станцией (HA {ha_version})")
+            logger.warning(f"Устройство {device_id_normalized} не найдено или не является Яндекс Станцией (HA {ha_version})")
             raise HTTPException(status_code=404, detail="Устройство не найдено или не является Яндекс Станцией")
-        logger.info(f"Источник установлен: {entity_id} (HA {ha_version})")
-        return {"message": f"Источник установлен: {entity_id}"}
+        logger.info(f"Источник установлен: {device_id_normalized} (HA {ha_version})")
+        return {"message": f"Источник установлен: {device_id_normalized}"}
     except HTTPException:
         raise
     except Exception as e:
@@ -244,18 +138,14 @@ async def set_source(
 async def set_target(
     device_id: str,
     request: Request,
-    request_body: Optional[SetTargetRequest] = None,
 ):
     """Установить активный приёмник звука (DLNA-устройство).
 
     Устанавливает активный приёмник для стриминга. Приёмником может быть DLNA-рендерер,
-    обнаруженный в сети. Устройство можно указать двумя способами:
-    1. Через path parameter `device_id` (простой способ, если device_id известен).
-    2. Через JSON body с подробными данными (entity_id, IP, MAC, friendly_name, renderer_url и т.д.) для точного сопоставления.
+    обнаруженный в сети. Устройство указывается через path parameter `device_id`.
 
     Параметры:
-    - `device_id`: ID устройства, полученный из списка устройств (используется, если не передан JSON body).
-    - `request_body`: (опционально) Объект SetTargetRequest с дополнительными данными для поиска устройства.
+    - `device_id`: ID устройства, полученный из списка устройств.
 
     Ответ:
     - 200: Успешно, возвращает сообщение об установке приёмника.
@@ -263,43 +153,20 @@ async def set_target(
     - 500: Внутренняя ошибка сервера.
     """
     ha_version = request.headers.get("X-Home-Assistant-Version", "unknown")
-    
-    # Определяем entity_id: если передан JSON body, используем его, иначе device_id из пути
-    if request_body is not None:
-        entity_id = request_body.entity_id
-        ip_address = request_body.ip_address
-        mac_addresses = request_body.mac_addresses
-        friendly_name = request_body.friendly_name
-        renderer_url = request_body.renderer_url
-        extra = request_body.extra
-        logger.info(f"Установка приёмника через JSON: {entity_id} (HA {ha_version})")
-    else:
-        entity_id = device_id
-        ip_address = None
-        mac_addresses = None
-        friendly_name = None
-        renderer_url = None
-        extra = None
-        logger.info(f"Установка приёмника через path: {device_id} (HA {ha_version})")
-    
+    device_id_normalized = device_id.upper()
+    logger.info(f"Установка приёмника через path: {device_id_normalized} (HA {ha_version})")
+
     try:
         # Принудительно обновляем список устройств перед поиском
         await device_manager.discover_all()
-        
-        # Используем улучшенный метод set_active_target_with_details
-        success = device_manager.set_active_target_with_details(
-            entity_id=entity_id,
-            ip_address=ip_address,
-            mac_addresses=mac_addresses,
-            friendly_name=friendly_name,
-            renderer_url=renderer_url,
-            extra=extra,
-        )
+
+        # Используем метод set_active_target
+        success = device_manager.set_active_target(device_id_normalized)
         if not success:
-            logger.warning(f"Устройство {entity_id} не найдено или не является DLNA-рендерером (HA {ha_version})")
+            logger.warning(f"Устройство {device_id_normalized} не найдено или не является DLNA-рендерером (HA {ha_version})")
             raise HTTPException(status_code=404, detail="Устройство не найдено или не является DLNA-рендерером")
-        logger.info(f"Приёмник установлен: {entity_id} (HA {ha_version})")
-        return {"message": f"Приёмник установлен: {entity_id}"}
+        logger.info(f"Приёмник установлен: {device_id_normalized} (HA {ha_version})")
+        return {"message": f"Приёмник установлен: {device_id_normalized}"}
     except HTTPException:
         raise
     except Exception as e:

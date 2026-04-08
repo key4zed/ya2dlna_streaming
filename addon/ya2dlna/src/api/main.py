@@ -24,8 +24,8 @@ def main():
     logger.info("▶️ Запуск API сервера...")
     uvicorn.run(
         app,
-        host=settings.local_server_host,
-        port=settings.local_server_port_api
+        host="0.0.0.0",  # Фиксированный хост для API сервера
+        port=8000  # Фиксированный порт для API сервера
     )
 
 

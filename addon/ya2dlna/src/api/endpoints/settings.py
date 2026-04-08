@@ -19,16 +19,9 @@ SETTINGS_FILE = Path("/data/settings.json")
 class AppSettings(BaseModel):
     """Модель настроек приложения для API."""
     ya_music_token: Optional[str] = Field(default=None, description="Токен Яндекс.Музыки")
-    x_token: Optional[str] = Field(default=None, description="X‑Token для авторизации Яндекс.Станции")
-    cookie: Optional[str] = Field(default=None, description="Cookie для авторизации Яндекс.Станции")
     ruark_pin: Optional[str] = Field(default=None, description="PIN для управления Ruark R5")
-    local_server_host: str = Field(default="0.0.0.0", description="Хост сервера")
-    local_server_port_dlna: int = Field(default=8001, ge=1, le=65535, description="Порт DLNA сервера")
-    local_server_port_api: int = Field(default=8000, ge=1, le=65535, description="Порт API")
     stream_quality: str = Field(default="192", description="Качество стрима: 128, 192, 320")
-    debug: bool = Field(default=False, description="Режим отладки")
     mute_yandex_station: Optional[bool] = Field(default=None, description="Отключить звук Яндекс Станции")
-    dlna_device_name: str = Field(default="", description="Имя DLNA устройства")
     yandex_music_timeout: int = Field(default=10, ge=1, description="Таймаут Яндекс.Музыки (сек)")
     yandex_music_cache_ttl: int = Field(default=300, ge=0, description="Время жизни кэша треков (сек)")
 
@@ -73,11 +66,11 @@ def get_current_settings() -> AppSettings:
             result[field_name] = value
     
     # Гарантируем, что обязательные строковые поля не None
-    string_fields = {"ya_music_token", "x_token", "cookie", "ruark_pin", "dlna_device_name"}
-    for field in string_fields:
-        if result.get(field) is None:
-            result[field] = ""
-    # Булево поле mute_yandex_station
+    # Если значение None, заменяем на пустую строку (для строк) или True (для булева)
+    if result.get("ya_music_token") is None:
+        result["ya_music_token"] = ""
+    if result.get("ruark_pin") is None:
+        result["ruark_pin"] = ""
     if result.get("mute_yandex_station") is None:
         result["mute_yandex_station"] = True
     

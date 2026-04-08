@@ -15,14 +15,8 @@ ports:
 map:
   - config:rw
 logo: "logo.png"
-options:
-  local_server_port_dlna: 8001
-  local_server_port_api: 8000
-  debug: false
-schema:
-  local_server_port_dlna: int
-  local_server_port_api: int
-  debug: bool
+options: {}
+schema: {}
 
 build_from:
   aarch64: ghcr.io/home-assistant/aarch64-base:latest

@@ -202,8 +202,8 @@ class StreamHandler:
                 )
 
             track_url = (
-                f"http://{settings.local_server_host}:"
-                f"{settings.local_server_port_dlna}/live_stream.mp3"
+                f"http://0.0.0.0:"
+                f"8001/live_stream.mp3"  # Фиксированный хост и порт DLNA сервера
                 f"?radio={str(self._current_radio).lower()}"
             )
             await self.execute_with_lock(
@@ -523,8 +523,8 @@ class StreamHandler:
             # Запускаем потоковую передачу (теперь быстро, без ожидания)
             await self.start_ffmpeg_stream(yandex_url, radio)
             track_url = (
-                f"http://{settings.local_server_host}:"
-                f"{settings.local_server_port_dlna}/live_stream.mp3"
+                f"http://0.0.0.0:"
+                f"8001/live_stream.mp3"  # Фиксированный хост и порт DLNA сервера
                 f"?radio={str(radio).lower()}"
             )
             logger.info(f"📡 Поток доступен по URL: {track_url}")

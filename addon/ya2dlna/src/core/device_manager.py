@@ -42,8 +42,8 @@ class DeviceManager:
 
     def __init__(self, dlna_controller: Optional[DLNAController] = None):
         self._yandex_finder = DeviceFinder()
-        # Используем имя устройства из настроек, если указано, иначе "DLNA Renderer"
-        device_name = settings.dlna_device_name or "DLNA Renderer"
+        # Используем фиксированное имя устройства "DLNA Renderer"
+        device_name = "DLNA Renderer"
         if dlna_controller is None:
             self._dlna_controller = DLNAController(device_name=device_name)
         else:
@@ -153,18 +153,18 @@ class DeviceManager:
         ip_address: Optional[str] = None,
         mac_addresses: Optional[List[str]] = None,
         platform: Optional[str] = None,
-        extra: Optional[Dict[str, Any]] = None,
+        friendly_name: Optional[str] = None,
     ) -> Optional[DeviceInfo]:
         """Найти устройство по entity_id из Home Assistant с дополнительными данными.
         
         Поиск выполняется в следующем порядке приоритета:
         1. По MAC-адресам (если предоставлены)
         2. По IPv4 адресу (если предоставлен и является IPv4)
-        3. По device_id из extra (если есть)
-        4. По friendly_name из extra (для DLNA устройств)
+        3. По friendly_name (для DLNA устройств)
+        4. По device_id из entity_id (для Яндекс Станций)
         5. По имени устройства (частичное совпадение)
         """
-        logger.debug(f"Поиск устройства по entity_id {entity_id}, IP={ip_address}, MAC={mac_addresses}, extra={extra}")
+        logger.debug(f"Поиск устройства по entity_id {entity_id}, IP={ip_address}, MAC={mac_addresses}, friendly_name={friendly_name}")
         
         # 0. Логируем все доступные устройства для отладки
         if not self._devices:
@@ -203,27 +203,12 @@ class DeviceManager:
         elif ip_address:
             logger.debug(f"IP адрес {ip_address} не является IPv4, пропускаем поиск по IP")
         
-        # 3. Поиск по device_id из extra (если есть)
-        if extra:
-            # Для Яндекс Станций: ищем device_id в extra
-            if device_type == DeviceType.YANDEX_STATION:
-                device_id = extra.get("device_id")
-                if device_id:
-                    # Поиск без учёта регистра
-                    device_id_upper = device_id.upper()
-                    for dev in self._devices.values():
-                        if dev.device_id.upper() == device_id_upper:
-                            logger.debug(f"Найдено устройство по device_id из extra (без учёта регистра): {dev.name}")
-                            return dev
-            
-            # Для DLNA устройств: ищем по friendly_name из extra
-            if device_type == DeviceType.DLNA_RENDERER:
-                friendly_name = extra.get("friendly_name")
-                if friendly_name:
-                    device = self._find_device_by_friendly_name(friendly_name, device_type)
-                    if device:
-                        logger.debug(f"Найдено устройство по friendly_name из extra: {device.name}")
-                        return device
+        # 3. Поиск по friendly_name (для DLNA устройств)
+        if device_type == DeviceType.DLNA_RENDERER and friendly_name:
+            device = self._find_device_by_friendly_name(friendly_name, device_type)
+            if device:
+                logger.debug(f"Найдено устройство по friendly_name: {device.name}")
+                return device
         
         # 4. Поиск по entity_id (попытка извлечь device_id из entity_id)
         # Для Яндекс Станций: entity_id может содержать device_id
@@ -413,7 +398,6 @@ class DeviceManager:
         ip_address: Optional[str] = None,
         mac_addresses: Optional[List[str]] = None,
         platform: Optional[str] = None,
-        extra: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Установить активный источник звука с дополнительными данными."""
         # Поиск устройства только по MAC и IPv4 адресам
@@ -422,7 +406,6 @@ class DeviceManager:
             ip_address=ip_address,
             mac_addresses=mac_addresses,
             platform=platform,
-            extra=extra,
         )
         if not device:
             logger.warning(f"Устройство {entity_id} не найдено по MAC или IPv4.")
@@ -444,8 +427,6 @@ class DeviceManager:
                 logger.debug(f"Установлены MAC-адреса для источника {device.name}: {normalized_macs}")
         if platform and isinstance(device, YandexStation) and not device.platform:
             device.platform = platform
-        if extra:
-            device.extra = extra
         
         self._active_source_id = device.device_id
         logger.info(f"Активный источник установлен: {device.name} (IP: {device.ip_address}, MAC: {device.mac_addresses})")
@@ -459,7 +440,6 @@ class DeviceManager:
             mac_addresses=None,
             friendly_name=None,
             renderer_url=None,
-            extra=None,
         )
 
     def set_active_target_with_details(
@@ -469,21 +449,15 @@ class DeviceManager:
         mac_addresses: Optional[List[str]] = None,
         friendly_name: Optional[str] = None,
         renderer_url: Optional[str] = None,
-        extra: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Установить активный приёмник звука с дополнительными данными."""
-        # Добавляем friendly_name в extra для поиска, если он передан
-        search_extra = extra.copy() if extra else {}
-        if friendly_name and "friendly_name" not in search_extra:
-            search_extra["friendly_name"] = friendly_name
-        
         # Поиск устройства только по MAC и IPv4 адресам
         device = self.find_device_by_entity_id(
             entity_id=entity_id,
             ip_address=ip_address,
             mac_addresses=mac_addresses,
             platform=None,
-            extra=search_extra,
+            friendly_name=friendly_name,
         )
         if not device:
             logger.warning(f"Устройство {entity_id} не найдено по MAC или IPv4.")
@@ -507,8 +481,6 @@ class DeviceManager:
             device.friendly_name = friendly_name
         if renderer_url and isinstance(device, DlnaRenderer) and not device.renderer_url:
             device.renderer_url = renderer_url
-        if extra:
-            device.extra = extra
         
         self._active_target_id = device.device_id
         logger.info(f"Активный приёмник установлен: {device.name} (IP: {device.ip_address}, MAC: {device.mac_addresses})")
