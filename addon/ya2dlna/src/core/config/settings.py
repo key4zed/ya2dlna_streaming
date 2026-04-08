@@ -51,6 +51,28 @@ class Settings(BaseSettings):
         description="Включить отладочное логирование.",
     )
 
+    # Яндекс авторизация
+    ya_music_token: str = Field(
+        "",
+        description="Токен Яндекс.Музыки (OAuth).",
+    )
+    x_token: str = Field(
+        "",
+        description="X‑Token для авторизации Яндекс.Станции.",
+    )
+    cookie: str = Field(
+        "",
+        description="Cookie для авторизации Яндекс.Станции.",
+    )
+    ruark_pin: str = Field(
+        "",
+        description="PIN для управления Ruark R5.",
+    )
+    mute_yandex_station: bool = Field(
+        True,
+        description="Отключать звук на Яндекс Станции во время трансляции.",
+    )
+
     # Фиксированные параметры (не настраиваются через конфигурацию аддона)
     stream_quality: str = "192"  # Качество аудиопотока в кбит/с (128, 192 или 320)
     stream_is_local_file: bool = False  # Скачивать треки локально перед стримингом (для отладки)
