@@ -43,10 +43,10 @@ class DeviceInfo(BaseModel):
         example="192.168.1.100",
         description="IP адрес устройства в локальной сети"
     )
-    mac_addresses: List[str] = Field(
-        default_factory=list,
-        example=["aa:bb:cc:dd:ee:ff"],
-        description="Список MAC адресов устройства"
+    mac_address: str = Field(
+        default="",
+        example="aa:bb:cc:dd:ee:ff",
+        description="MAC адрес устройства"
     )
     extra: Dict[str, Any] = Field(
         default_factory=dict,
@@ -64,7 +64,7 @@ class DeviceInfo(BaseModel):
                 "host": "192.168.1.100",
                 "port": 8080,
                 "ip_address": "192.168.1.100",
-                "mac_addresses": ["aa:bb:cc:dd:ee:ff"]
+                "mac_address": "aa:bb:cc:dd:ee:ff"
             }
         }
     )
@@ -102,7 +102,7 @@ class YandexStation(DeviceInfo):
                 "host": "192.168.1.100",
                 "port": 8080,
                 "ip_address": "192.168.1.100",
-                "mac_addresses": ["aa:bb:cc:dd:ee:ff"],
+                "mac_address": "aa:bb:cc:dd:ee:ff",
                 "platform": "yandex_station",
                 "volume": 50,
                 "muted": False,
@@ -144,7 +144,7 @@ class DlnaRenderer(DeviceInfo):
                 "host": "192.168.1.200",
                 "port": 49152,
                 "ip_address": "192.168.1.200",
-                "mac_addresses": ["11:22:33:44:55:66"],
+                "mac_address": "11:22:33:44:55:66",
                 "renderer_url": "http://192.168.1.200:49152/description.xml",
                 "friendly_name": "Living Room Speaker",
                 "volume": 30,

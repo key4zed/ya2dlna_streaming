@@ -206,8 +206,6 @@ async def get_config(request: Request):
 @router.post("/stream/start")
 async def start_streaming(
     request: Request,
-    x_token: Optional[str] = Query(None, description="X‑Token для авторизации Яндекс.Станции (опционально)"),
-    cookie: Optional[str] = Query(None, description="Cookie для авторизации Яндекс.Станции (опционально)"),
     ruark_pin: Optional[str] = Query(None, description="PIN‑код для управления Ruark R5 (опционально)"),
     mute_yandex_station: Optional[bool] = Query(None, description="Отключать звук на Яндекс Станции во время трансляции (опционально)"),
 ):
@@ -217,8 +215,6 @@ async def start_streaming(
     Перед запуском необходимо установить активные источник и приёмник через соответствующие эндпоинты.
 
     Параметры запроса (query parameters):
-    - `x_token`: (опционально) X‑Token для авторизации на Яндекс.Станции.
-    - `cookie`: (опционально) Cookie для авторизации на Яндекс.Станции.
     - `ruark_pin`: (опционально) PIN‑код для управления Ruark R5.
     - `mute_yandex_station`: (опционально) Отключать звук на Яндекс Станции во время трансляции (по умолчанию True).
 
@@ -240,8 +236,6 @@ async def start_streaming(
     # Устанавливаем параметры стриминга
     try:
         main_stream_manager.set_streaming_params(
-            x_token=x_token,
-            cookie=cookie,
             ruark_pin=ruark_pin,
             mute_yandex_station=mute_yandex_station if mute_yandex_station is not None else True,
         )

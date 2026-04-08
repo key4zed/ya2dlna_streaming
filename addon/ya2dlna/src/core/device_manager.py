@@ -119,11 +119,11 @@ class DeviceManager:
             logger.debug(f"Найдена Яндекс Станция: host={host}, device={device}")
             
             # Получаем MAC-адрес по IP
-            mac_addresses = []
+            mac_address = ""
             if host:
                 mac = get_mac_address(host)
                 if mac:
-                    mac_addresses.append(mac)
+                    mac_address = mac
                     logger.debug(f"Найден MAC-адрес для Яндекс Станции {host}: {mac}")
                 else:
                     logger.debug(f"MAC-адрес для Яндекс Станции {host} не найден")
@@ -135,7 +135,7 @@ class DeviceManager:
                 host=host,
                 port=device.get("port", 0),
                 ip_address=host,  # Используем host как IP адрес
-                mac_addresses=mac_addresses,
+                mac_address=mac_address,
                 extra=device,
                 platform=device.get("platform", "unknown"),
             )
@@ -175,11 +175,11 @@ class DeviceManager:
                 ip_address = parsed.hostname if parsed.hostname else ""
                 
                 # Получаем MAC-адрес по IP
-                mac_addresses = []
+                mac_address = ""
                 if ip_address:
                     mac = get_mac_address(ip_address)
                     if mac:
-                        mac_addresses.append(mac)
+                        mac_address = mac
                         logger.debug(f"Найден MAC-адрес для DLNA устройства {ip_address}: {mac}")
                     else:
                         logger.debug(f"MAC-адрес для DLNA устройства {ip_address} не найден")
@@ -191,7 +191,7 @@ class DeviceManager:
                     host=ip_address,
                     port=parsed.port or 80,
                     ip_address=ip_address,
-                    mac_addresses=mac_addresses,
+                    mac_address=mac_address,
                     extra={"location": location},
                     renderer_url=location,
                     friendly_name=device.friendly_name,
