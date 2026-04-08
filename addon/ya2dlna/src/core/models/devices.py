@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class DeviceType(str, Enum):
@@ -55,8 +55,8 @@ class DeviceInfo(BaseModel):
         exclude=True
     )
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "device_id": "LY0000000000000375320000de71a2d5",
                 "name": "Яндекс Станция в гостиной",
@@ -67,6 +67,7 @@ class DeviceInfo(BaseModel):
                 "mac_addresses": ["aa:bb:cc:dd:ee:ff"]
             }
         }
+    )
 
 
 class YandexStation(DeviceInfo):
@@ -92,8 +93,8 @@ class YandexStation(DeviceInfo):
         description="Состояние Алисы (IDLE, SPEAKING, LISTENING)"
     )
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "device_id": "LY0000000000000375320000de71a2d5",
                 "name": "Яндекс Станция в гостиной",
@@ -108,6 +109,7 @@ class YandexStation(DeviceInfo):
                 "alice_state": "IDLE"
             }
         }
+    )
 
 
 class DlnaRenderer(DeviceInfo):
@@ -133,8 +135,8 @@ class DlnaRenderer(DeviceInfo):
         description="Включено ли устройство"
     )
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "device_id": "uuid:device-UUID-1234",
                 "name": "DLNA Renderer",
@@ -149,6 +151,7 @@ class DlnaRenderer(DeviceInfo):
                 "power": True
             }
         }
+    )
 
 
 class StreamingConfig(BaseModel):
@@ -177,8 +180,8 @@ class StreamingConfig(BaseModel):
         description="Текущий статус стриминга"
     )
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "source_device_id": "LY0000000000000375320000de71a2d5",
                 "target_device_id": "uuid:device-UUID-1234",
@@ -187,3 +190,4 @@ class StreamingConfig(BaseModel):
                 "current_status": "idle"
             }
         }
+    )
