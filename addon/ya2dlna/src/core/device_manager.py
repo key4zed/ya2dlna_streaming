@@ -342,16 +342,16 @@ class DeviceManager:
                     logger.debug(f"IP не совпадает: {ip_address} != {device.ip_address}")
             
             # Сравнение MAC адресов с нормализацией
-            if normalized_mac_addresses and device.mac_addresses:
-                # Нормализуем MAC-адреса устройства
-                normalized_device_macs = [self._normalize_mac(mac) for mac in device.mac_addresses if mac]
-                logger.debug(f"Нормализованные MAC-адреса устройства {device.name}: {normalized_device_macs} (исходные: {device.mac_addresses})")
+            if normalized_mac_addresses and device.mac_address:
+                # Нормализуем MAC-адрес устройства
+                normalized_device_mac = self._normalize_mac(device.mac_address)
+                logger.debug(f"Нормализованный MAC-адрес устройства {device.name}: {normalized_device_mac} (исходный: {device.mac_address})")
                 for normalized_mac in normalized_mac_addresses:
-                    if normalized_mac in normalized_device_macs:
+                    if normalized_mac == normalized_device_mac:
                         logger.debug(f"Найдено устройство по MAC адресу: {device.name} (MAC: {normalized_mac})")
                         return device
             elif normalized_mac_addresses:
-                logger.debug(f"У устройства {device.name} нет MAC-адресов")
+                logger.debug(f"У устройства {device.name} нет MAC-адреса")
         
         logger.debug(f"Устройство по IP {ip_address} или MAC {mac_addresses} не найдено")
         return None
@@ -488,18 +488,18 @@ class DeviceManager:
         # Обновляем данные устройства, если переданы дополнительные сведения
         if ip_address and not device.ip_address:
             device.ip_address = ip_address
-        if mac_addresses and not device.mac_addresses:
-            # Фильтруем пустые MAC-адреса и нормализуем
+        if mac_addresses and not device.mac_address:
+            # Фильтруем пустые MAC-адреса и нормализуем, берём первый непустой MAC
             filtered_macs = [mac for mac in mac_addresses if mac]
             if filtered_macs:
-                normalized_macs = [self._normalize_mac(mac) for mac in filtered_macs]
-                device.mac_addresses = normalized_macs
-                logger.debug(f"Установлены MAC-адреса для источника {device.name}: {normalized_macs}")
+                normalized_mac = self._normalize_mac(filtered_macs[0])
+                device.mac_address = normalized_mac
+                logger.debug(f"Установлен MAC-адрес для источника {device.name}: {normalized_mac}")
         if platform and isinstance(device, YandexStation) and not device.platform:
             device.platform = platform
         
         self._active_source_id = device.device_id
-        logger.info(f"Активный источник установлен: {device.name} (IP: {device.ip_address}, MAC: {device.mac_addresses})")
+        logger.info(f"Активный источник установлен: {device.name} (IP: {device.ip_address}, MAC: {device.mac_address})")
         return True
 
     def set_active_target(self, device_or_entity_id: str) -> bool:
@@ -540,20 +540,20 @@ class DeviceManager:
         # Обновляем данные устройства, если переданы дополнительные сведения
         if ip_address and not device.ip_address:
             device.ip_address = ip_address
-        if mac_addresses and not device.mac_addresses:
-            # Фильтруем пустые MAC-адреса и нормализуем
+        if mac_addresses and not device.mac_address:
+            # Фильтруем пустые MAC-адреса и нормализуем, берём первый непустой MAC
             filtered_macs = [mac for mac in mac_addresses if mac]
             if filtered_macs:
-                normalized_macs = [self._normalize_mac(mac) for mac in filtered_macs]
-                device.mac_addresses = normalized_macs
-                logger.debug(f"Установлены MAC-адреса для приёмника {device.name}: {normalized_macs}")
+                normalized_mac = self._normalize_mac(filtered_macs[0])
+                device.mac_address = normalized_mac
+                logger.debug(f"Установлен MAC-адрес для приёмника {device.name}: {normalized_mac}")
         if friendly_name and isinstance(device, DlnaRenderer) and not device.friendly_name:
             device.friendly_name = friendly_name
         if renderer_url and isinstance(device, DlnaRenderer) and not device.renderer_url:
             device.renderer_url = renderer_url
         
         self._active_target_id = device.device_id
-        logger.info(f"Активный приёмник установлен: {device.name} (IP: {device.ip_address}, MAC: {device.mac_addresses})")
+        logger.info(f"Активный приёмник установлен: {device.name} (IP: {device.ip_address}, MAC: {device.mac_address})")
         return True
 
     def get_active_source(self) -> Optional[YandexStation]:
