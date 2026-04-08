@@ -51,7 +51,8 @@ class DeviceInfo(BaseModel):
     extra: Dict[str, Any] = Field(
         default_factory=dict,
         example={"room": "living_room", "volume": 50},
-        description="Дополнительные произвольные данные"
+        description="Дополнительные произвольные данные",
+        exclude=True
     )
 
     class Config:
@@ -63,8 +64,7 @@ class DeviceInfo(BaseModel):
                 "host": "192.168.1.100",
                 "port": 8080,
                 "ip_address": "192.168.1.100",
-                "mac_addresses": ["aa:bb:cc:dd:ee:ff"],
-                "extra": {"room": "living_room"}
+                "mac_addresses": ["aa:bb:cc:dd:ee:ff"]
             }
         }
 
@@ -102,7 +102,6 @@ class YandexStation(DeviceInfo):
                 "port": 8080,
                 "ip_address": "192.168.1.100",
                 "mac_addresses": ["aa:bb:cc:dd:ee:ff"],
-                "extra": {"room": "living_room"},
                 "platform": "yandex_station",
                 "volume": 50,
                 "muted": False,
@@ -144,7 +143,6 @@ class DlnaRenderer(DeviceInfo):
                 "port": 49152,
                 "ip_address": "192.168.1.200",
                 "mac_addresses": ["11:22:33:44:55:66"],
-                "extra": {"manufacturer": "Sonos"},
                 "renderer_url": "http://192.168.1.200:49152/description.xml",
                 "friendly_name": "Living Room Speaker",
                 "volume": 30,
