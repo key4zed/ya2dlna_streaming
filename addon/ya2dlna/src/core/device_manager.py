@@ -147,6 +147,17 @@ class DeviceManager:
         logger.info(f"Найдено Яндекс Станций: {len(stations)}")
         return stations
 
+    def _is_renderer(self, device) -> bool:
+        """Проверить, является ли UPnP устройство DLNA-рендерером (имеет сервис AVTransport)."""
+        try:
+            # Проверяем наличие сервиса AVTransport (urn:schemas-upnp-org:service:AVTransport:1)
+            for service in device.services:
+                if 'AVTransport' in service.service_type:
+                    return True
+            return False
+        except Exception:
+            return False
+
     async def discover_dlna_renderers(self) -> List[DlnaRenderer]:
         """Обнаружить DLNA-рендереры в сети."""
         logger.info("Поиск DLNA-устройств...")
@@ -154,7 +165,7 @@ class DeviceManager:
         
         try:
             devices = upnpclient.discover()
-            logger.info(f"Найдено {len(devices)} DLNA устройств в сети")
+            logger.info(f"Найдено {len(devices)} UPnP устройств в сети")
 
             for i, d in enumerate(devices):
                 logger.debug(f"Устройство {i}: friendly_name={d.friendly_name}, udn={d.udn}, location={d.location}")
@@ -165,6 +176,11 @@ class DeviceManager:
         renderers = []
         for device in devices:
             try:
+                # Пропускаем не-рендереры
+                if not self._is_renderer(device):
+                    logger.debug(f"Устройство {device.friendly_name} не является DLNA-рендерером, пропускаем")
+                    continue
+                
                 # Получаем IP адрес из location URL
                 location = device.location
                 if not location:
@@ -229,11 +245,9 @@ class DeviceManager:
         """Найти устройство по entity_id из Home Assistant с дополнительными данными.
         
         Поиск выполняется в следующем порядке приоритета:
-        1. По MAC-адресам (если предоставлены)
-        2. По IPv4 адресу (если предоставлен и является IPv4)
-        3. По friendly_name (для DLNA устройств)
-        4. По device_id из entity_id (для Яндекс Станций)
-        5. По имени устройства (частичное совпадение)
+        1. По device_id (для всех устройств) - если entity_id совпадает с device_id
+        2. По device_id из entity_id (для Яндекс Станций) - извлекается из entity_id
+        3. По device_id из entity_id (для DLNA устройств) - извлекается из entity_id
         """
         logger.debug(f"Поиск устройства по entity_id {entity_id}, IP={ip_address}, MAC={mac_addresses}, friendly_name={friendly_name}")
         
@@ -243,6 +257,14 @@ class DeviceManager:
         else:
             logger.debug(f"Доступные устройства: {[d.name for d in self._devices.values()]}")
         
+        # 1. Прямой поиск по device_id (entity_id может быть самим device_id)
+        # Приводим к верхнему регистру для регистронезависимого сравнения
+        entity_id_upper = entity_id.upper()
+        for dev in self._devices.values():
+            if dev.device_id.upper() == entity_id_upper:
+                logger.debug(f"Найдено устройство по прямому совпадению device_id: {dev.name}")
+                return dev
+        
         # Определяем тип устройства по entity_id (если можно) для ускорения поиска
         device_type = None
         if "yandex_station" in entity_id.lower() or "yandex" in entity_id.lower():
@@ -250,39 +272,7 @@ class DeviceManager:
         elif "dlna" in entity_id.lower() or "renderer" in entity_id.lower():
             device_type = DeviceType.DLNA_RENDERER
         
-        # 1. Поиск по MAC адресам (если предоставлены) - самый точный метод
-        if mac_addresses:
-            device_by_mac = self._find_device_by_ip_mac(
-                ip_address=None,
-                mac_addresses=mac_addresses,
-                device_type=device_type,
-            )
-            if device_by_mac:
-                logger.debug(f"Найдено устройство по MAC адресу: {device_by_mac.name}")
-                return device_by_mac
-        
-        # 2. Если MAC не найден, поиск по IPv4 адресу (если предоставлен и является IPv4)
-        if ip_address and self._is_ipv4(ip_address):
-            device_by_ip = self._find_device_by_ip_mac(
-                ip_address=ip_address,
-                mac_addresses=None,
-                device_type=device_type,
-            )
-            if device_by_ip:
-                logger.debug(f"Найдено устройство по IPv4 адресу: {device_by_ip.name}")
-                return device_by_ip
-        elif ip_address:
-            logger.debug(f"IP адрес {ip_address} не является IPv4, пропускаем поиск по IP")
-        
-        # 3. Поиск по friendly_name (для DLNA устройств)
-        if device_type == DeviceType.DLNA_RENDERER and friendly_name:
-            device = self._find_device_by_friendly_name(friendly_name, device_type)
-            if device:
-                logger.debug(f"Найдено устройство по friendly_name: {device.name}")
-                return device
-        
-        # 4. Поиск по entity_id (попытка извлечь device_id из entity_id)
-        # Для Яндекс Станций: entity_id может содержать device_id
+        # 2. Поиск по device_id из entity_id (для Яндекс Станций)
         if device_type == DeviceType.YANDEX_STATION:
             # Пробуем извлечь device_id из entity_id (формат: media_player.yandex_station_<device_id>)
             parts = entity_id.split('_')
@@ -296,11 +286,18 @@ class DeviceManager:
                             logger.debug(f"Найдено устройство по device_id из entity_id (без учёта регистра): {dev.name}")
                             return dev
         
-        # 5. Поиск по частичному совпадению имени
-        device_by_name = self._find_device_by_partial_name(entity_id, device_type)
-        if device_by_name:
-            logger.debug(f"Найдено устройство по частичному совпадению имени: {device_by_name.name}")
-            return device_by_name
+        # 3. Поиск по device_id из entity_id (для DLNA устройств)
+        if device_type == DeviceType.DLNA_RENDERER:
+            # Пробуем извлечь device_id из entity_id (формат: media_player.dlna_renderer_<device_id>)
+            parts = entity_id.split('_')
+            if len(parts) > 1:
+                possible_device_id = parts[-1]
+                # Поиск без учёта регистра
+                possible_device_id_upper = possible_device_id.upper()
+                for dev in self._devices.values():
+                    if dev.device_id.upper() == possible_device_id_upper:
+                        logger.debug(f"Найдено DLNA устройство по device_id из entity_id: {dev.name}")
+                        return dev
         
         logger.warning(f"Устройство с entity_id {entity_id} не найдено. Доступные устройства: {[(d.name, d.device_type.value, d.device_id[:20]) for d in self._devices.values()]}")
         return None
@@ -470,7 +467,7 @@ class DeviceManager:
         platform: Optional[str] = None,
     ) -> bool:
         """Установить активный источник звука с дополнительными данными."""
-        # Поиск устройства только по MAC и IPv4 адресам
+        # Поиск устройства по device_id
         device = self.find_device_by_entity_id(
             entity_id=entity_id,
             ip_address=ip_address,
@@ -478,7 +475,7 @@ class DeviceManager:
             platform=platform,
         )
         if not device:
-            logger.warning(f"Устройство {entity_id} не найдено по MAC или IPv4.")
+            logger.warning(f"Устройство {entity_id} не найдено по device_id.")
             return False
         
         if device.device_type != DeviceType.YANDEX_STATION:
@@ -521,7 +518,7 @@ class DeviceManager:
         renderer_url: Optional[str] = None,
     ) -> bool:
         """Установить активный приёмник звука с дополнительными данными."""
-        # Поиск устройства только по MAC и IPv4 адресам
+        # Поиск устройства по device_id
         device = self.find_device_by_entity_id(
             entity_id=entity_id,
             ip_address=ip_address,
@@ -530,7 +527,7 @@ class DeviceManager:
             friendly_name=friendly_name,
         )
         if not device:
-            logger.warning(f"Устройство {entity_id} не найдено по MAC или IPv4.")
+            logger.warning(f"Устройство {entity_id} не найдено по device_id.")
             return False
         
         if device.device_type != DeviceType.DLNA_RENDERER:

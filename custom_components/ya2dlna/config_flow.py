@@ -95,6 +95,9 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         for dev in devices:
                             device_id = dev.get("device_id")
                             friendly_name = dev.get("friendly_name") or dev.get("name", "Unknown")
+                            port = dev.get("port")
+                            if port:
+                                friendly_name = f"{friendly_name} [{port}]"
                             result.append((device_id, friendly_name))
                         return result
                     else:
@@ -575,6 +578,9 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
                         for dev in devices:
                             device_id = dev.get("device_id")
                             friendly_name = dev.get("friendly_name") or dev.get("name", "Unknown")
+                            port = dev.get("port")
+                            if port:
+                                friendly_name = f"{friendly_name} [{port}]"
                             result.append((device_id, friendly_name))
                         return result
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
