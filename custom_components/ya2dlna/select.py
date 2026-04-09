@@ -86,7 +86,7 @@ class Ya2DLNASelect(SelectEntity):
         self._target_friendly_name = target_friendly_name
         self._entry_id = entry_id
         self._attr_options = []
-        self._attr_current_option = None
+        self._attr_current_option = target_friendly_name if target_friendly_name else None
         self._available_targets = []  # список кортежей (device_id, friendly_name)
         self._attr_name = "Ya2DLNA Active Target"
         self._attr_unique_id = f"{entry_id}_active_target"
@@ -124,8 +124,14 @@ class Ya2DLNASelect(SelectEntity):
                         for dev in devices:
                             device_id = dev.get("device_id")
                             friendly_name = dev.get("friendly_name") or dev.get("name", "Unknown")
-                            self._available_targets.append((device_id, friendly_name))
-                            options.append(friendly_name)
+                            port = dev.get("port")
+                            # Добавляем порт к отображаемому имени для уникальности
+                            if port:
+                                display_name = f"{friendly_name} [{port}]"
+                            else:
+                                display_name = friendly_name
+                            self._available_targets.append((device_id, display_name))
+                            options.append(display_name)
                         self._attr_options = options
                         _LOGGER.debug("Доступные таргеты: %s", self._available_targets)
                     else:
@@ -148,17 +154,12 @@ class Ya2DLNASelect(SelectEntity):
                     if resp.status == 200:
                         config = await resp.json()
                         _LOGGER.debug(f"GET ответ: статус {resp.status}, тело: {config}")
-                        active_target = config.get("active_target")
-                        if active_target:
-                            # active_target может быть словарём или строкой device_id
-                            if isinstance(active_target, dict):
-                                device_id = active_target.get("device_id")
-                            else:
-                                device_id = active_target
+                        target_device_id = config.get("target_device_id")
+                        if target_device_id:
                             # Найти friendly_name по device_id
                             friendly_name = None
                             for dev_id, fname in self._available_targets:
-                                if dev_id == device_id:
+                                if dev_id == target_device_id:
                                     friendly_name = fname
                                     break
                             if friendly_name:
@@ -211,4 +212,8 @@ class Ya2DLNASelect(SelectEntity):
         return {
             ATTR_ACTIVE_TARGET: self._attr_current_option,
             ATTR_AVAILABLE_TARGETS: [fname for _, fname in self._available_targets],
+            "available_targets_details": [
+                {"device_id": dev_id, "friendly_name": fname}
+                for dev_id, fname in self._available_targets
+            ],
         }
