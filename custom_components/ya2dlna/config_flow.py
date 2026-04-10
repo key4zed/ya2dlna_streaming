@@ -617,8 +617,6 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 # Создаём финальную запись
                 data = {
                     CONF_AUTH_METHOD: self.auth_method,
-                    CONF_X_TOKEN: self.x_token,
-                    CONF_COOKIE: self.cookie,
                     CONF_YA_MUSIC_TOKEN: self.ya_music_token,
                     CONF_SOURCE_ENTITY: self.source_entity,
                     CONF_SOURCE_DEVICE_ID: source_device_id or "",
@@ -632,7 +630,13 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_ENABLE_FILE_LOGGING: enable_file_logging,
                 }
                 # Логируем данные конфигурации (без чувствительных полей)
-                safe_data = {k: v for k, v in data.items() if k not in [CONF_X_TOKEN, CONF_COOKIE, CONF_RUARK_PIN, CONF_YA_MUSIC_TOKEN]}
+                safe_data = {k: v for k, v in data.items() if k not in [CONF_RUARK_PIN, CONF_YA_MUSIC_TOKEN]}
+                # Отдельно логируем наличие ya_music_token
+                ya_music_token = data.get(CONF_YA_MUSIC_TOKEN, "")
+                if ya_music_token:
+                    _LOGGER.info(f"ya_music_token присутствует (длина {len(ya_music_token)} символов)")
+                else:
+                    _LOGGER.warning("ya_music_token отсутствует или пуст")
                 _LOGGER.info(f"Creating config entry for Ya2DLNA (Home Assistant {ha_version}): {safe_data}")
                 return self.async_create_entry(title="Ya2DLNA Streaming", data=data)
             except KeyError as e:

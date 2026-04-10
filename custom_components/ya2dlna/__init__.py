@@ -38,6 +38,8 @@ async def _send_settings_to_addon(hass: HomeAssistant, entry: ConfigEntry) -> No
     
     if not ya_music_token:
         _LOGGER.warning("ya_music_token не указан. Аддон не сможет получить glagol токен.")
+    else:
+        _LOGGER.info(f"ya_music_token присутствует (длина {len(ya_music_token)} символов)")
     
     settings = {
         "ya_music_token": ya_music_token,
@@ -49,8 +51,20 @@ async def _send_settings_to_addon(hass: HomeAssistant, entry: ConfigEntry) -> No
         "yandex_music_cache_ttl": 300,
     }
     
+    # Логируем настройки без чувствительных данных
+    safe_settings = settings.copy()
+    if ya_music_token:
+        if len(ya_music_token) > 8:
+            safe_settings["ya_music_token"] = ya_music_token[:4] + "***" + ya_music_token[-4:]
+        else:
+            safe_settings["ya_music_token"] = "***"
+    if ruark_pin:
+        safe_settings["ruark_pin"] = "***"
+    
     url = f"http://{api_host}:{api_port}/settings"
-    _LOGGER.debug(f"Отправка настроек на аддон: {url}")
+    _LOGGER.info(f"Отправка настроек на аддон: {url}, настройки: {safe_settings}")
+    # Детальное логирование для отладки (DEBUG уровень)
+    _LOGGER.debug(f"Полный JSON настроек: {settings}")
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=settings, timeout=10) as resp:

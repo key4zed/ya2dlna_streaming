@@ -92,13 +92,21 @@ async def update_settings(new_settings: AppSettings):
     """Обновить настройки."""
     try:
         # Сохраняем в файл
-        save_settings_to_file(new_settings.model_dump())
+        settings_dict = new_settings.model_dump()
+        # Логируем полученные настройки (маскируем чувствительные данные)
+        logged_settings = settings_dict.copy()
+        if logged_settings.get("ya_music_token"):
+            token = logged_settings["ya_music_token"]
+            logged_settings["ya_music_token"] = "***" + token[-4:] if len(token) > 4 else "***"
+        if logged_settings.get("ruark_pin"):
+            logged_settings["ruark_pin"] = "***"
+        logger.info(f"Настройки обновлены через API: {logged_settings}")
+        save_settings_to_file(settings_dict)
         # Применяем настройки к текущему экземпляру Settings (перезагружаем)
         # Для этого нужно пересоздать объект Settings с учетом новых значений.
         # Однако глобальный объект settings уже создан. Вместо этого можно
         # обновить переменные окружения или перезапустить приложение.
         # Пока просто сохраняем в файл, а при следующем запуске настройки загрузятся.
-        logger.info("Настройки обновлены через API")
         return new_settings
     except HTTPException:
         raise
