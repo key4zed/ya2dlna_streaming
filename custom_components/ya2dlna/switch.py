@@ -12,10 +12,9 @@ from .const import (
     CONF_SOURCE_DEVICE_ID,
     CONF_TARGET_ENTITY,
     CONF_API_PORT,
-    CONF_X_TOKEN,
-    CONF_COOKIE,
     CONF_RUARK_PIN,
     CONF_MUTE_YANDEX_STATION,
+    CONF_YA_MUSIC_TOKEN,
     CONF_TARGET_DEVICE_ID,
     CONF_TARGET_FRIENDLY_NAME,
     CONF_ENABLE_FILE_LOGGING,
@@ -70,11 +69,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     target_entity = get_config(CONF_TARGET_ENTITY)
     target_device_id = get_config(CONF_TARGET_DEVICE_ID)
     target_friendly_name = get_config(CONF_TARGET_FRIENDLY_NAME)
-    x_token = get_config(CONF_X_TOKEN, "")
-    cookie = get_config(CONF_COOKIE, "")
     ruark_pin = get_config(CONF_RUARK_PIN, "")
     mute_yandex_station = get_config(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
-    _LOGGER.debug(f"Конфигурация: api_host={api_host}, api_port={api_port}, source_entity={source_entity}, source_device_id={source_device_id}, target_entity={target_entity}, target_device_id={target_device_id}, target_friendly_name={target_friendly_name}, mute_yandex_station={mute_yandex_station}, enable_file_logging={enable_file_logging}")
+    ya_music_token = get_config(CONF_YA_MUSIC_TOKEN, "")
+    _LOGGER.debug(f"Конфигурация: api_host={api_host}, api_port={api_port}, source_entity={source_entity}, source_device_id={source_device_id}, target_entity={target_entity}, target_device_id={target_device_id}, target_friendly_name={target_friendly_name}, mute_yandex_station={mute_yandex_station}, ya_music_token={'***' if ya_music_token else ''}, enable_file_logging={enable_file_logging}")
 
     # Проверка обязательных параметров
     missing = []
@@ -97,12 +95,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         target_entity,
         target_device_id,
         target_friendly_name,
-        x_token,
-        cookie,
         ruark_pin,
         mute_yandex_station,
         config_entry.entry_id,
         source_device_id,
+        ya_music_token,
     )
     
     # Создаём дополнительный switch для управления mute_yandex_station
@@ -121,7 +118,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class Ya2DLNASwitch(SwitchEntity):
     """Representation of a streaming switch."""
 
-    def __init__(self, hass, api_host, api_port, source_entity, target_entity, target_device_id, target_friendly_name, x_token, cookie, ruark_pin, mute_yandex_station, entry_id, source_device_id=""):
+    def __init__(self, hass, api_host, api_port, source_entity, target_entity, target_device_id, target_friendly_name, ruark_pin, mute_yandex_station, entry_id, source_device_id="", ya_music_token=""):
         """Initialize the switch."""
         self.hass = hass
         self._api_host = api_host  # Настраиваемый API хост
@@ -131,11 +128,10 @@ class Ya2DLNASwitch(SwitchEntity):
         self._target_entity = target_entity
         self._target_device_id = target_device_id
         self._target_friendly_name = target_friendly_name
-        self._x_token = x_token
-        self._cookie = cookie
         self._ruark_pin = ruark_pin
         self._mute_yandex_station = mute_yandex_station
         self._entry_id = entry_id
+        self._ya_music_token = ya_music_token
         self._state = False
         self._attr_name = "Ya2DLNA Streaming"
         self._attr_unique_id = f"ya2dlna_switch_{entry_id}"
@@ -362,16 +358,13 @@ class Ya2DLNASwitch(SwitchEntity):
                 _LOGGER.debug(f"Информация об источнике {self._source_entity}: {source_info}")
                 _LOGGER.debug(f"Информация о приёмнике {self._target_entity}: {target_info}")
                 
-                # Установить источник с передачей дополнительной информации
+                # Установить источник (тело запроса не требуется)
                 # Используем source_device_id, если он есть, иначе entity_id (fallback)
                 source_device_id = self._source_device_id if self._source_device_id else self._source_entity
                 _LOGGER.info(f"Используемый source_device_id: {source_device_id} (из mapping: {self._source_device_id}, entity: {self._source_entity})")
                 source_url = f"http://{self._api_host}:{self._api_port}/ha/source/{source_device_id}"
-                _LOGGER.debug(f"Установка источника через {source_url} с данными: {source_info}")
-                resp = await session.post(
-                    source_url,
-                    json=source_info
-                )
+                _LOGGER.debug(f"Установка источника через {source_url}")
+                resp = await session.post(source_url)
                 response_text = await resp.text()
                 _LOGGER.debug(f"Ответ от установки источника: статус {resp.status}, текст: {response_text if resp.status != 200 else 'OK'}")
                 if resp.status not in (200, 201, 204):
@@ -380,24 +373,16 @@ class Ya2DLNASwitch(SwitchEntity):
                 else:
                     _LOGGER.debug(f"Источник успешно установлен")
                 
-                # Установить приёмник с передачей дополнительной информации
+                # Установить приёмник (тело запроса не требуется)
                 # Если задан target_device_id, используем его, иначе target_entity
                 if self._target_device_id:
                     device_id = self._target_device_id
-                    # Создаём информацию об устройстве на основе сохранённых данных
-                    target_info = {
-                        "entity_id": device_id,
-                        "friendly_name": self._target_friendly_name or "",
-                    }
                     target_url = f"http://{self._api_host}:{self._api_port}/ha/target/{device_id}"
                 else:
                     device_id = self._target_entity
                     target_url = f"http://{self._api_host}:{self._api_port}/ha/target/{device_id}"
-                _LOGGER.debug(f"Установка приёмника через {target_url} с данными: {target_info}")
-                resp = await session.post(
-                    target_url,
-                    json=target_info
-                )
+                _LOGGER.debug(f"Установка приёмника через {target_url}")
+                resp = await session.post(target_url)
                 response_text = await resp.text()
                 _LOGGER.debug(f"Ответ от установки приёмника: статус {resp.status}, текст: {response_text if resp.status != 200 else 'OK'}")
                 if resp.status not in (200, 201, 204):
@@ -406,12 +391,8 @@ class Ya2DLNASwitch(SwitchEntity):
                 else:
                     _LOGGER.debug(f"Приёмник успешно установлен")
                 
-                # Запустить стриминг с передачей x_token, cookie, ruark_pin и mute_yandex_station, если они есть
+                # Запустить стриминг с передачей ruark_pin и mute_yandex_station, если они есть
                 params = {}
-                if self._x_token:
-                    params["x_token"] = self._x_token
-                if self._cookie:
-                    params["cookie"] = self._cookie
                 if self._ruark_pin:
                     params["ruark_pin"] = self._ruark_pin
                 if self._mute_yandex_station is not None:
@@ -481,8 +462,7 @@ class Ya2DLNASwitch(SwitchEntity):
             self._target_entity = get_config(CONF_TARGET_ENTITY)
             self._target_device_id = get_config(CONF_TARGET_DEVICE_ID)
             self._target_friendly_name = get_config(CONF_TARGET_FRIENDLY_NAME)
-            self._x_token = get_config(CONF_X_TOKEN, "")
-            self._cookie = get_config(CONF_COOKIE, "")
+            self._ya_music_token = get_config(CONF_YA_MUSIC_TOKEN, "")
             self._ruark_pin = get_config(CONF_RUARK_PIN, "")
             self._mute_yandex_station = get_config(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
             

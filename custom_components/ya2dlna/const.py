@@ -14,6 +14,7 @@ CONF_COOKIE = "cookie"
 CONF_RUARK_PIN = "ruark_pin"
 CONF_MUTE_YANDEX_STATION = "mute_yandex_station"
 CONF_AUTH_METHOD = "auth_method"
+CONF_YA_MUSIC_TOKEN = "ya_music_token"
 # Новые параметры для выбора таргета через аддон
 CONF_TARGET_DEVICE_ID = "target_device_id"
 CONF_TARGET_FRIENDLY_NAME = "target_friendly_name"

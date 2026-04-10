@@ -1,6 +1,8 @@
 """Config flow for Ya2DLNA."""
 import asyncio
+import json
 import logging
+from typing import Optional
 import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
@@ -15,6 +17,7 @@ from .const import (
     CONF_API_PORT,
     CONF_X_TOKEN,
     CONF_COOKIE,
+    CONF_YA_MUSIC_TOKEN,
     CONF_AUTH_METHOD,
     CONF_RUARK_PIN,
     CONF_MUTE_YANDEX_STATION,
@@ -71,6 +74,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.auth_method = None
         self.x_token = None
         self.cookie = None
+        self.ya_music_token = None
         self.source_entity = None
         self.target_entity = None
         self.api_host = DEFAULT_API_HOST
@@ -79,6 +83,96 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.target_device_id = None
         self.target_friendly_name = None
         self.yandex_mapping = {}  # entity_id -> device_id
+        self.ruark_pin = ""
+        self.mute_yandex_station = DEFAULT_MUTE_YANDEX_STATION
+        self.enable_file_logging = DEFAULT_ENABLE_FILE_LOGGING
+
+
+    async def _fetch_music_token(self, x_token: str) -> Optional[str]:
+        """Получить music_token (ya_music_token) из x_token через Яндекс OAuth."""
+        url = "https://oauth.mobile.yandex.net/1/token"
+        payload = {
+            "client_secret": "53bc75238f0c4d08a118e51fe9203300",
+            "client_id": "23cabbbdc6cd418abb4b39c32c41195d",
+            "grant_type": "x-token",
+            "access_token": x_token,
+        }
+        _LOGGER.debug(f"Запрос music_token с x_token")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, data=payload, timeout=10) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        music_token = data.get("access_token")
+                        if music_token:
+                            _LOGGER.debug(f"Успешно получен music_token")
+                            return music_token
+                        else:
+                            _LOGGER.error(f"В ответе отсутствует access_token: {data}")
+                            return None
+                    else:
+                        response_text = await resp.text()
+                        _LOGGER.error(f"Ошибка при запросе music_token: статус {resp.status}, тело: {response_text}")
+                        return None
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            _LOGGER.error(f"Сетевая ошибка при запросе music_token: {e}")
+            return None
+        except Exception as e:
+            _LOGGER.error(f"Неизвестная ошибка при запросе music_token: {e}")
+            return None
+
+    async def _get_x_token_from_cookies(self, cookies: str) -> Optional[str]:
+        """Получить x_token из cookie через Яндекс OAuth."""
+        # Определяем host и обрабатываем разные форматы cookie
+        host = "passport.yandex.ru"
+        if cookies.startswith("["):
+            # JSON формат от расширения Copy Cookies
+            try:
+                raw = json.loads(cookies)
+                # Ищем домен .yandex.
+                for p in raw:
+                    if p.get("domain", "").startswith(".yandex."):
+                        host = p["domain"]
+                        break
+                # Преобразуем в строку cookie
+                cookies = "; ".join([f"{p['name']}={p['value']}" for p in raw])
+            except json.JSONDecodeError:
+                _LOGGER.error("Неверный JSON формат cookie")
+                return None
+        # Если cookie уже в формате key=value; key2=value2, оставляем как есть
+
+        url = "https://mobileproxy.passport.yandex.net/1/bundle/oauth/token_by_sessionid"
+        payload = {
+            "client_id": "c0ebe342af7d48fbbbfcf2d2eedb8f9e",
+            "client_secret": "ad0a908f0aa341a182a37ecd75bc319e",
+        }
+        headers = {
+            "Ya-Client-Host": host,
+            "Ya-Client-Cookie": cookies,
+        }
+        _LOGGER.debug(f"Запрос x_token из cookie с host {host}")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, data=payload, headers=headers, timeout=10) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        x_token = data.get("access_token")
+                        if x_token:
+                            _LOGGER.debug("Успешно получен x_token из cookie")
+                            return x_token
+                        else:
+                            _LOGGER.error(f"В ответе отсутствует access_token: {data}")
+                            return None
+                    else:
+                        response_text = await resp.text()
+                        _LOGGER.error(f"Ошибка при запросе x_token из cookie: статус {resp.status}, тело: {response_text}")
+                        return None
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            _LOGGER.error(f"Сетевая ошибка при запросе x_token из cookie: {e}")
+            return None
+        except Exception as e:
+            _LOGGER.error(f"Неизвестная ошибка при запросе x_token из cookie: {e}")
+            return None
 
     async def _fetch_dlna_devices(self) -> list:
         """Запросить список DLNA-устройств у аддона."""
@@ -293,6 +387,18 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         errors["base"] = "no_auth_data"
                         _LOGGER.error(f"No auth data in selected Yandex Station entry (Home Assistant {ha_version})")
                     else:
+                        # Пытаемся получить ya_music_token из x_token, если он есть
+                        if self.x_token and self.x_token.strip():
+                            try:
+                                music_token = await self._fetch_music_token(self.x_token.strip())
+                                if music_token:
+                                    self.ya_music_token = music_token
+                                    _LOGGER.info(f"Успешно получен ya_music_token из x_token интеграции Яндекс.Станции")
+                                else:
+                                    _LOGGER.warning("Не удалось получить ya_music_token из x_token")
+                            except Exception as e:
+                                _LOGGER.exception(f"Ошибка при получении ya_music_token из x_token: {e}")
+                                # Продолжаем без ya_music_token
                         return await self.async_step_config()
                 else:
                     errors["base"] = "entry_not_found"
@@ -352,7 +458,25 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     _LOGGER.error(f"Invalid cookie provided (Home Assistant {ha_version})")
                 else:
                     self.cookie = cookie
-                    self.x_token = ""
+                    # Пытаемся получить x_token из cookie
+                    x_token = await self._get_x_token_from_cookies(cookie.strip())
+                    if x_token:
+                        self.x_token = x_token
+                        _LOGGER.info(f"Успешно получен x_token из cookie")
+                        # Пытаемся получить ya_music_token из x_token
+                        try:
+                            music_token = await self._fetch_music_token(x_token)
+                            if music_token:
+                                self.ya_music_token = music_token
+                                _LOGGER.info(f"Успешно получен ya_music_token из x_token")
+                            else:
+                                _LOGGER.warning("Не удалось получить ya_music_token из x_token")
+                        except Exception as e:
+                            _LOGGER.exception(f"Ошибка при получении ya_music_token из x_token: {e}")
+                            # Продолжаем без ya_music_token
+                    else:
+                        self.x_token = ""
+                        _LOGGER.warning("Не удалось получить x_token из cookie. Продолжаем без x_token.")
                     return await self.async_step_config()
             except KeyError as e:
                 _LOGGER.error(f"Missing key in user_input: {e} (Home Assistant {ha_version})")
@@ -388,6 +512,17 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 else:
                     self.x_token = x_token
                     self.cookie = ""
+                    # Пытаемся получить ya_music_token из x_token
+                    try:
+                        music_token = await self._fetch_music_token(x_token.strip())
+                        if music_token:
+                            self.ya_music_token = music_token
+                            _LOGGER.info(f"Успешно получен ya_music_token из введённого x_token")
+                        else:
+                            _LOGGER.warning("Не удалось получить ya_music_token из x_token")
+                    except Exception as e:
+                        _LOGGER.exception(f"Ошибка при получении ya_music_token из x_token: {e}")
+                        # Продолжаем без ya_music_token
                     return await self.async_step_config()
             except KeyError as e:
                 _LOGGER.error(f"Missing key in user_input: {e} (Home Assistant {ha_version})")
@@ -431,6 +566,20 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if self.dlna_devices is None:
                 self.dlna_devices = []
         
+        # Автоматическое вычисление ya_music_token из x_token (если он ещё не получен на предыдущих шагах)
+        if self.ya_music_token is None and self.x_token and self.x_token.strip():
+            try:
+                _LOGGER.info(f"Пытаемся получить music_token из x_token...")
+                music_token = await self._fetch_music_token(self.x_token.strip())
+                if music_token:
+                    self.ya_music_token = music_token
+                    _LOGGER.info(f"Автоматически получен ya_music_token из x_token")
+                else:
+                    _LOGGER.warning("Не удалось получить music_token из x_token. Пользователю нужно будет ввести токен вручную.")
+            except Exception as e:
+                _LOGGER.exception(f"Ошибка при автоматическом получении ya_music_token: {e}")
+                # Продолжаем без токена, пользователь введёт вручную
+        
         if user_input is not None:
             try:
                 # Сохраняем данные
@@ -439,6 +588,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self.api_port = user_input.get(CONF_API_PORT, DEFAULT_API_PORT)
                 self.ruark_pin = user_input.get(CONF_RUARK_PIN, "")
                 self.mute_yandex_station = user_input.get(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
+                self.ya_music_token = user_input.get(CONF_YA_MUSIC_TOKEN, "")
                 
                 # Определяем выбранное DLNA-устройство
                 selected_device = user_input.get(CONF_TARGET_DEVICE_ID)
@@ -469,6 +619,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_AUTH_METHOD: self.auth_method,
                     CONF_X_TOKEN: self.x_token,
                     CONF_COOKIE: self.cookie,
+                    CONF_YA_MUSIC_TOKEN: self.ya_music_token,
                     CONF_SOURCE_ENTITY: self.source_entity,
                     CONF_SOURCE_DEVICE_ID: source_device_id or "",
                     CONF_TARGET_ENTITY: self.target_entity,
@@ -481,7 +632,7 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_ENABLE_FILE_LOGGING: enable_file_logging,
                 }
                 # Логируем данные конфигурации (без чувствительных полей)
-                safe_data = {k: v for k, v in data.items() if k not in [CONF_X_TOKEN, CONF_COOKIE, CONF_RUARK_PIN]}
+                safe_data = {k: v for k, v in data.items() if k not in [CONF_X_TOKEN, CONF_COOKIE, CONF_RUARK_PIN, CONF_YA_MUSIC_TOKEN]}
                 _LOGGER.info(f"Creating config entry for Ya2DLNA (Home Assistant {ha_version}): {safe_data}")
                 return self.async_create_entry(title="Ya2DLNA Streaming", data=data)
             except KeyError as e:
@@ -519,10 +670,12 @@ class Ya2DLNAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Схема данных
         fields = {
             vol.Required(CONF_SOURCE_ENTITY): source_selector,
+            vol.Optional(CONF_API_HOST, default=self.api_host): str,
             vol.Optional(CONF_API_PORT, default=self.api_port): int,
-            vol.Optional(CONF_RUARK_PIN, default=""): str,
-            vol.Optional(CONF_MUTE_YANDEX_STATION, default=DEFAULT_MUTE_YANDEX_STATION): bool,
-            vol.Optional(CONF_ENABLE_FILE_LOGGING, default=DEFAULT_ENABLE_FILE_LOGGING): bool,
+            vol.Optional(CONF_RUARK_PIN, default=self.ruark_pin): str,
+            vol.Optional(CONF_MUTE_YANDEX_STATION, default=self.mute_yandex_station): bool,
+            vol.Optional(CONF_ENABLE_FILE_LOGGING, default=self.enable_file_logging): bool,
+            vol.Optional(CONF_YA_MUSIC_TOKEN, default=self.ya_music_token or ""): str,
         }
         
         if device_options:
@@ -697,6 +850,7 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
                 CONF_RUARK_PIN: user_input.get(CONF_RUARK_PIN, ""),
                 CONF_MUTE_YANDEX_STATION: user_input.get(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION),
                 CONF_ENABLE_FILE_LOGGING: user_input.get(CONF_ENABLE_FILE_LOGGING, DEFAULT_ENABLE_FILE_LOGGING),
+                CONF_YA_MUSIC_TOKEN: user_input.get(CONF_YA_MUSIC_TOKEN, ""),
             }
             _LOGGER.info(f"Updating options for Ya2DLNA (Home Assistant {ha_version})")
             return self.async_create_entry(title="", data=data)
@@ -718,6 +872,7 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
         current_ruark_pin = get_value(CONF_RUARK_PIN, "")
         current_mute_yandex_station = get_value(CONF_MUTE_YANDEX_STATION, DEFAULT_MUTE_YANDEX_STATION)
         current_enable_file_logging = get_value(CONF_ENABLE_FILE_LOGGING, DEFAULT_ENABLE_FILE_LOGGING)
+        current_ya_music_token = get_value(CONF_YA_MUSIC_TOKEN, "")
 
         # Селектор для источника (Яндекс Станции)
         selector_config = {
@@ -755,6 +910,7 @@ class Ya2DLNAOptionsFlow(config_entries.OptionsFlow):
             vol.Optional(CONF_RUARK_PIN, default=current_ruark_pin): str,
             vol.Optional(CONF_MUTE_YANDEX_STATION, default=current_mute_yandex_station): bool,
             vol.Optional(CONF_ENABLE_FILE_LOGGING, default=current_enable_file_logging): bool,
+            vol.Optional(CONF_YA_MUSIC_TOKEN, default=current_ya_music_token): str,
         }
         
         if device_options:
